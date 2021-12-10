@@ -59,6 +59,7 @@ linters:
     - maligned # deprecated
     - interfacer # deprecated
     - scopelint # deprecated
+    - golint # deprecated
     - sqlclosecheck # not relevant (SQL)
     - rowserrcheck # not relevant (SQL)
     - cyclop # duplicate of gocyclo
@@ -96,5 +97,5 @@ issues:
         - gochecknoinits
         - gochecknoglobals
     - path: pkg/version/version.go
-      linters :
+      linters:
         - gochecknoglobals

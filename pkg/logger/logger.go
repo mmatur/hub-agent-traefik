@@ -1,18 +1,33 @@
 package logger
 
 import (
+	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
 // Setup configures the logger.
-func Setup(level string) {
+func Setup(level, format string) {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 
-	log.Logger = zerolog.New(os.Stderr).With().Caller().Logger()
+	var w io.Writer
+	switch format {
+	case "json":
+		w = os.Stderr
+	case "console":
+		w = zerolog.ConsoleWriter{
+			Out:        os.Stderr,
+			TimeFormat: time.RFC3339,
+		}
+	default:
+		w = os.Stderr
+	}
+
+	log.Logger = zerolog.New(w).With().Timestamp().Logger()
 	zerolog.DefaultContextLogger = &log.Logger
 
 	logLevel := zerolog.InfoLevel
