@@ -9,6 +9,7 @@ import (
 
 	"github.com/ettle/strcase"
 	"github.com/rs/zerolog/log"
+	"github.com/traefik/neo-agent/pkg/acp/auth"
 	"github.com/traefik/neo-agent/pkg/heartbeat"
 	"github.com/traefik/neo-agent/pkg/logger"
 	"github.com/traefik/neo-agent/pkg/platform"
@@ -18,10 +19,12 @@ import (
 )
 
 const (
-	flagLogLevel    = "log-level"
-	flagLogFormat   = "log-format"
-	flagToken       = "token"
-	flagPlatformURL = "platform-url"
+	flagLogLevel             = "log-level"
+	flagLogFormat            = "log-format"
+	flagToken                = "token"
+	flagPlatformURL          = "platform-url"
+	flagAuthServerListenAddr = "auth-server-listen-addr"
+	flagAuthServerACPDir     = "auth-server-acp-dir"
 )
 
 func main() {
@@ -60,6 +63,18 @@ func run() error {
 				EnvVars: []string{strcase.ToSNAKE(flagPlatformURL)},
 				Hidden:  true,
 			},
+			&cli.StringFlag{
+				Name:    flagAuthServerListenAddr,
+				Usage:   "Address on which the auth server listens for auth requests",
+				EnvVars: []string{strcase.ToSNAKE(flagAuthServerListenAddr)},
+				Value:   "0.0.0.0:80",
+			},
+			&cli.StringFlag{
+				Name:    flagAuthServerACPDir,
+				Usage:   "Directory path containing Access Control Policy configurations",
+				EnvVars: []string{strcase.ToSNAKE(flagAuthServerACPDir)},
+				Value:   "./acps",
+			},
 		},
 		Action: runAgent,
 	}
@@ -88,11 +103,17 @@ func runAgent(cliCtx *cli.Context) error {
 
 	heartbeater := heartbeat.NewHeartbeater(platformClient)
 
+	listenAddr, acpDir := cliCtx.String(flagAuthServerListenAddr), cliCtx.String(flagAuthServerACPDir)
+
 	group, ctx := errgroup.WithContext(cliCtx.Context)
 
 	group.Go(func() error {
 		heartbeater.Run(ctx)
 		return nil
+	})
+
+	group.Go(func() error {
+		return auth.RunACPServer(ctx, listenAddr, acpDir)
 	})
 
 	return group.Wait()

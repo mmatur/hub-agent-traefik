@@ -80,6 +80,8 @@ linters:
     - bodyclose # Too many false positives: https://github.com/timakin/bodyclose/issues/30
     - ifshort # disable due to false-positive, the linter will be fixed https://github.com/esimonov/ifshort
     - varnamelen
+    - nilnil
+    - ireturn
 
 issues:
   exclude-use-default: false
@@ -99,3 +101,7 @@ issues:
     - path: pkg/version/version.go
       linters:
         - gochecknoglobals
+    # Digest auth uses md5 in tests.
+    - path: pkg/acp/digestauth/digest_auth_request_test.go
+      linters:
+        - gosec
