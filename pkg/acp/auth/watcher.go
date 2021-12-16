@@ -86,7 +86,10 @@ func (w *Watcher) Run(ctx context.Context) {
 func readACPDir(dir string) (map[string]*acp.Config, error) {
 	cfgs := make(map[string]*acp.Config)
 
-	if err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, _ error) error {
+	if err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
 		if d.IsDir() {
 			return nil
 		}

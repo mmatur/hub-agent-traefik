@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ettle/strcase"
 	"github.com/rs/zerolog/log"
@@ -25,6 +26,7 @@ const (
 	flagPlatformURL          = "platform-url"
 	flagAuthServerListenAddr = "auth-server-listen-addr"
 	flagAuthServerACPDir     = "auth-server-acp-dir"
+	flagTraefikAddr          = "traefik-addr"
 )
 
 func main() {
@@ -75,6 +77,12 @@ func run() error {
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerACPDir)},
 				Value:   "./acps",
 			},
+			&cli.StringFlag{
+				Name:     flagTraefikAddr,
+				Usage:    "Address on which the Agent can reach Traefik",
+				EnvVars:  []string{strcase.ToSNAKE(flagTraefikAddr)},
+				Required: true,
+			},
 		},
 		Action: runAgent,
 	}
@@ -94,19 +102,33 @@ func runAgent(cliCtx *cli.Context) error {
 		Str("commit", version.Commit()).
 		Str("module", version.ModuleName()).Send()
 
-	platformURL, token := cliCtx.String(flagPlatformURL), cliCtx.String(flagToken)
-	platformClient := platform.NewClient(platformURL, token)
+	platformURL, token := cliCtx.String(flagPlatformURL), cliCtx.String("token")
+	platformClient, err := platform.NewClient(platformURL, token)
+	if err != nil {
+		return fmt.Errorf("new platform client: %w", err)
+	}
 
-	if err := platformClient.Link(cliCtx.Context); err != nil {
+	if err = platformClient.Link(cliCtx.Context); err != nil {
 		return fmt.Errorf("link agent: %w", err)
+	}
+
+	agentCfg, err := platformClient.GetConfig(cliCtx.Context)
+	if err != nil {
+		return fmt.Errorf("fetch agent config: %w", err)
 	}
 
 	heartbeater := heartbeat.NewHeartbeater(platformClient)
 
 	listenAddr, acpDir := cliCtx.String(flagAuthServerListenAddr), cliCtx.String(flagAuthServerACPDir)
 
-	group, ctx := errgroup.WithContext(cliCtx.Context)
+	traefikAddr := cliCtx.String(flagTraefikAddr)
+	cfgWatcher := platform.NewConfigWatcher(15*time.Minute, platformClient)
+	mtrcsMgr, _, err := newMetrics(token, platformURL, agentCfg.Metrics, cfgWatcher)
+	if err != nil {
+		return err
+	}
 
+	group, ctx := errgroup.WithContext(cliCtx.Context)
 	group.Go(func() error {
 		heartbeater.Run(ctx)
 		return nil
@@ -114,6 +136,10 @@ func runAgent(cliCtx *cli.Context) error {
 
 	group.Go(func() error {
 		return auth.RunACPServer(ctx, listenAddr, acpDir)
+	})
+
+	group.Go(func() error {
+		return mtrcsMgr.Run(ctx, traefikAddr)
 	})
 
 	return group.Wait()

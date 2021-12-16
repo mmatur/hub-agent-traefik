@@ -3,11 +3,13 @@ package platform
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,13 +74,83 @@ func TestClient_Link(t *testing.T) {
 
 			t.Cleanup(srv.Close)
 
-			c := NewClient(srv.URL, testToken)
+			c, err := NewClient(srv.URL, testToken)
+			require.NoError(t, err)
 			c.httpClient = srv.Client()
 
-			err := c.Link(context.Background())
+			err = c.Link(context.Background())
 			test.wantErr(t, err)
 
 			require.Equal(t, 1, callCount)
+		})
+	}
+}
+
+func TestClient_GetConfig(t *testing.T) {
+	tests := []struct {
+		desc             string
+		returnStatusCode int
+		wantConfig       Config
+		wantErr          assert.ErrorAssertionFunc
+	}{
+		{
+			desc:             "get config succeeds",
+			returnStatusCode: http.StatusOK,
+			wantConfig: Config{
+				Metrics: MetricsConfig{
+					Interval: time.Minute,
+					Tables:   []string{"1m", "10m"},
+				},
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			desc:             "get config fails",
+			returnStatusCode: http.StatusTeapot,
+			wantConfig:       Config{},
+			wantErr:          assert.Error,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			var callCount int
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/config", func(rw http.ResponseWriter, req *http.Request) {
+				callCount++
+
+				if req.Method != http.MethodGet {
+					http.Error(rw, fmt.Sprintf("unsupported to method: %s", req.Method), http.StatusMethodNotAllowed)
+					return
+				}
+
+				if req.Header.Get("Authorization") != "Bearer "+testToken {
+					http.Error(rw, "Invalid token", http.StatusUnauthorized)
+					return
+				}
+
+				rw.WriteHeader(test.returnStatusCode)
+				_ = json.NewEncoder(rw).Encode(test.wantConfig)
+			})
+
+			srv := httptest.NewServer(mux)
+
+			t.Cleanup(srv.Close)
+
+			c, err := NewClient(srv.URL, testToken)
+			require.NoError(t, err)
+			c.httpClient = srv.Client()
+
+			agentCfg, err := c.GetConfig(context.Background())
+			test.wantErr(t, err)
+
+			require.Equal(t, 1, callCount)
+
+			assert.Equal(t, test.wantConfig, agentCfg)
 		})
 	}
 }
@@ -134,10 +206,11 @@ func TestClient_Ping(t *testing.T) {
 
 			t.Cleanup(srv.Close)
 
-			c := NewClient(srv.URL, testToken)
+			c, err := NewClient(srv.URL, testToken)
+			require.NoError(t, err)
 			c.httpClient = srv.Client()
 
-			err := c.Ping(context.Background())
+			err = c.Ping(context.Background())
 			test.wantErr(t, err)
 
 			require.Equal(t, 1, callCount)
