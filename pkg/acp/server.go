@@ -1,4 +1,4 @@
-package auth
+package acp
 
 import (
 	"context"
@@ -12,13 +12,34 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// RunACPServer runs the ACP auth server.
-func RunACPServer(ctx context.Context, listenAddr, acpDir string) error {
-	switcher := NewHandlerSwitcher()
-	acpWatcher := NewWatcher(switcher, acpDir)
+// Server serves ACP endpoints.
+type Server struct {
+	listenAddr string
+	handler    *httpHandler
+}
 
-	go acpWatcher.Run(ctx)
+// NewServer creates a new ACP Server.
+func NewServer(listenAddr string) *Server {
+	return &Server{
+		listenAddr: listenAddr,
+		handler:    newHTTPHandler(),
+	}
+}
 
+// UpdateHandler updates auth routes served by the Server.
+func (s *Server) UpdateHandler(_ context.Context, cfgs map[string]*Config) error {
+	routes, err := buildRoutes(cfgs)
+	if err != nil {
+		return fmt.Errorf("build routes: %w", err)
+	}
+
+	s.handler.Update(routes)
+
+	return nil
+}
+
+// Run runs the ACP auth server.
+func (s *Server) Run(ctx context.Context) error {
 	mux := http.NewServeMux()
 
 	mux.Handle("/_live", http.HandlerFunc(func(rw http.ResponseWriter, request *http.Request) {
@@ -28,10 +49,10 @@ func RunACPServer(ctx context.Context, listenAddr, acpDir string) error {
 		rw.WriteHeader(http.StatusOK)
 	}))
 
-	mux.Handle("/", switcher)
+	mux.Handle("/", s.handler)
 
 	server := &http.Server{
-		Addr:     listenAddr,
+		Addr:     s.listenAddr,
 		Handler:  mux,
 		ErrorLog: stdlog.New(log.Logger.Level(zerolog.DebugLevel), "", 0),
 	}
@@ -39,7 +60,7 @@ func RunACPServer(ctx context.Context, listenAddr, acpDir string) error {
 	srvDone := make(chan struct{})
 
 	go func() {
-		log.Info().Str("addr", listenAddr).Msg("Starting auth server")
+		log.Info().Str("addr", s.listenAddr).Msg("Starting auth server")
 		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			log.Err(err).Msg("Unable to listen and serve auth requests")
 		}

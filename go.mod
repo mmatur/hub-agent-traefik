@@ -13,6 +13,7 @@ require (
 	github.com/prometheus/common v0.32.1
 	github.com/rs/zerolog v1.26.0
 	github.com/stretchr/testify v1.7.0
+	github.com/traefik/genconf v0.1.0
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/vulcand/predicate v1.1.0
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c

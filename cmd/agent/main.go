@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,23 +11,25 @@ import (
 
 	"github.com/ettle/strcase"
 	"github.com/rs/zerolog/log"
-	"github.com/traefik/neo-agent/pkg/acp/auth"
+	"github.com/traefik/neo-agent/pkg/acp"
 	"github.com/traefik/neo-agent/pkg/heartbeat"
 	"github.com/traefik/neo-agent/pkg/logger"
 	"github.com/traefik/neo-agent/pkg/platform"
+	"github.com/traefik/neo-agent/pkg/traefik"
 	"github.com/traefik/neo-agent/pkg/version"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
-	flagLogLevel             = "log-level"
-	flagLogFormat            = "log-format"
-	flagToken                = "token"
-	flagPlatformURL          = "platform-url"
-	flagAuthServerListenAddr = "auth-server-listen-addr"
-	flagAuthServerACPDir     = "auth-server-acp-dir"
-	flagTraefikAddr          = "traefik-addr"
+	flagLogLevel                = "log-level"
+	flagLogFormat               = "log-format"
+	flagTraefikAddr             = "traefik-addr"
+	flagToken                   = "token"
+	flagPlatformURL             = "platform-url"
+	flagAuthServerListenAddr    = "auth-server-listen-addr"
+	flagAuthServerReachableAddr = "auth-server-reachable-addr"
+	flagAuthServerACPDir        = "auth-server-acp-dir"
 )
 
 func main() {
@@ -53,6 +56,12 @@ func run() error {
 				Value:   "json",
 			},
 			&cli.StringFlag{
+				Name:     flagTraefikAddr,
+				Usage:    "Address on which the Agent can reach Traefik",
+				EnvVars:  []string{strcase.ToSNAKE(flagTraefikAddr)},
+				Required: true,
+			},
+			&cli.StringFlag{
 				Name:     flagToken,
 				Usage:    "The token to use for Hub platform API calls",
 				EnvVars:  []string{strcase.ToSNAKE(flagToken)},
@@ -72,16 +81,15 @@ func run() error {
 				Value:   "0.0.0.0:80",
 			},
 			&cli.StringFlag{
+				Name:    flagAuthServerReachableAddr,
+				Usage:   "Address on which Traefik can reach the Agent auth server. Only recommended when there is a proxy between Traefik and the Agent",
+				EnvVars: []string{strcase.ToSNAKE(flagAuthServerReachableAddr)},
+			},
+			&cli.StringFlag{
 				Name:    flagAuthServerACPDir,
 				Usage:   "Directory path containing Access Control Policy configurations",
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerACPDir)},
 				Value:   "./acps",
-			},
-			&cli.StringFlag{
-				Name:     flagTraefikAddr,
-				Usage:    "Address on which the Agent can reach Traefik",
-				EnvVars:  []string{strcase.ToSNAKE(flagTraefikAddr)},
-				Required: true,
 			},
 		},
 		Action: runAgent,
@@ -119,7 +127,27 @@ func runAgent(cliCtx *cli.Context) error {
 
 	heartbeater := heartbeat.NewHeartbeater(platformClient)
 
-	listenAddr, acpDir := cliCtx.String(flagAuthServerListenAddr), cliCtx.String(flagAuthServerACPDir)
+	traefikClient, err := traefik.NewClient(cliCtx.String(flagTraefikAddr))
+	if err != nil {
+		return fmt.Errorf("create Traefik client: %w", err)
+	}
+
+	listenAddr, reachableAddr := cliCtx.String(flagAuthServerListenAddr), cliCtx.String(flagAuthServerReachableAddr)
+	if reachableAddr == "" {
+		reachableAddr, err = getAgentReachableAddress(cliCtx.Context, traefikClient, listenAddr)
+		if err != nil {
+			return fmt.Errorf("get agent reachable address: %w", err)
+		}
+	}
+
+	traefikManager := acp.NewTraefikManager(traefikClient, reachableAddr)
+
+	acpServer := acp.NewServer(listenAddr)
+	acpWatcher := acp.NewWatcher(
+		cliCtx.String(flagAuthServerACPDir),
+		acpServer.UpdateHandler,
+		traefikManager.UpdateMiddlewares,
+	)
 
 	traefikAddr := cliCtx.String(flagTraefikAddr)
 	cfgWatcher := platform.NewConfigWatcher(15*time.Minute, platformClient)
@@ -135,7 +163,12 @@ func runAgent(cliCtx *cli.Context) error {
 	})
 
 	group.Go(func() error {
-		return auth.RunACPServer(ctx, listenAddr, acpDir)
+		acpWatcher.Run(ctx)
+		return nil
+	})
+
+	group.Go(func() error {
+		return acpServer.Run(ctx)
 	})
 
 	group.Go(func() error {
@@ -143,4 +176,18 @@ func runAgent(cliCtx *cli.Context) error {
 	})
 
 	return group.Wait()
+}
+
+func getAgentReachableAddress(ctx context.Context, traefikClient *traefik.Client, listenAddr string) (string, error) {
+	reachableIP, err := traefikClient.GetAgentReachableIP(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get agent reachable ip: %w", err)
+	}
+
+	_, port, err := net.SplitHostPort(listenAddr)
+	if err != nil {
+		return "", fmt.Errorf("get listen address port: %w", err)
+	}
+
+	return fmt.Sprintf("http://%s:%s", reachableIP, port), nil
 }

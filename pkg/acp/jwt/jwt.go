@@ -146,9 +146,9 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		var jwtErr *jwt.ValidationError
 		if errors.As(err, &jwtErr) && jwtErr.Errors&jwt.ValidationErrorUnverifiable != 0 {
-			logger.Error().Err(err).Msg("Unable to verify the signing key")
+			logger.Debug().Err(err).Msg("Unable to verify the signing key")
 		} else {
-			logger.Error().Err(err).Msg("Unable to parse JWT")
+			logger.Debug().Err(err).Msg("Unable to parse JWT")
 		}
 
 		rw.WriteHeader(http.StatusUnauthorized)

@@ -41,7 +41,7 @@ func NewClient(baseURL, token string) (*Client, error) {
 
 	rc := retryablehttp.NewClient()
 	rc.RetryMax = 4
-	rc.Logger = logger.NewRetryableHTTPWrapper(log.Logger.With().Str("component", "platform_client").Logger())
+	rc.Logger = logger.NewRetryableHTTPWrapper(log.Logger.With().Str("component", "platform-client").Logger())
 
 	return &Client{
 		baseURL:    u,

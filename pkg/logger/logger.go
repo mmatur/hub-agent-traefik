@@ -43,5 +43,5 @@ func Setup(level, format string) {
 
 	zerolog.SetGlobalLevel(logLevel)
 
-	log.Trace().Msgf("Log level set to %s.", logLevel)
+	log.Trace().Str("level", logLevel.String()).Msg("Log level set")
 }
