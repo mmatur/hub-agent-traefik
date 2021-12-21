@@ -91,6 +91,7 @@ issues:
     - 'ST1000: at least one file in a package should have a package comment'
     - 'G204: Subprocess launched with variable'
     - 'G304: Potential file inclusion via variable'
+    - 'G102: Binds to all network interfaces'
   exclude-rules:
     - path: .*_test.go
       linters:
@@ -105,3 +106,6 @@ issues:
     - path: pkg/acp/digestauth/digest_auth_request_test.go
       linters:
         - gosec
+    # No need for cryptographically secured number generation here.
+    - path: pkg/traefik/client.go
+      text: 'G404: Use of weak random number generator \(math/rand instead of crypto/rand\)'

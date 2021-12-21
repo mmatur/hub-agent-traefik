@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"os/signal"
@@ -33,6 +34,8 @@ const (
 )
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	if err := run(); err != nil {
 		log.Fatal().Err(err).Msg("Error while executing command")
 	}
@@ -82,7 +85,7 @@ func run() error {
 			},
 			&cli.StringFlag{
 				Name:    flagAuthServerReachableAddr,
-				Usage:   "Address on which Traefik can reach the Agent auth server. Only recommended when there is a proxy between Traefik and the Agent",
+				Usage:   "Address on which Traefik can reach the Agent auth server. Required when the automatic IP discovery fails",
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerReachableAddr)},
 			},
 			&cli.StringFlag{
@@ -134,11 +137,14 @@ func runAgent(cliCtx *cli.Context) error {
 
 	listenAddr, reachableAddr := cliCtx.String(flagAuthServerListenAddr), cliCtx.String(flagAuthServerReachableAddr)
 	if reachableAddr == "" {
+		log.Debug().Msg("Using auto-discovery to find Agent reachable address")
 		reachableAddr, err = getAgentReachableAddress(cliCtx.Context, traefikClient, listenAddr)
 		if err != nil {
-			return fmt.Errorf("get agent reachable address: %w", err)
+			return fmt.Errorf("get agent reachable address: %w. Consider using the `%s` flag", err, flagAuthServerReachableAddr)
 		}
 	}
+
+	log.Info().Str("addr", reachableAddr).Msg("Using Agent reachable address")
 
 	traefikManager := acp.NewTraefikManager(traefikClient, reachableAddr)
 
@@ -181,12 +187,12 @@ func runAgent(cliCtx *cli.Context) error {
 func getAgentReachableAddress(ctx context.Context, traefikClient *traefik.Client, listenAddr string) (string, error) {
 	reachableIP, err := traefikClient.GetAgentReachableIP(ctx)
 	if err != nil {
-		return "", fmt.Errorf("get agent reachable ip: %w", err)
+		return "", err
 	}
 
 	_, port, err := net.SplitHostPort(listenAddr)
 	if err != nil {
-		return "", fmt.Errorf("get listen address port: %w", err)
+		return "", err
 	}
 
 	return fmt.Sprintf("http://%s:%s", reachableIP, port), nil

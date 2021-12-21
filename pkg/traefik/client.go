@@ -4,10 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/rs/zerolog/log"
@@ -60,7 +65,7 @@ func (c *Client) PushDynamic(ctx context.Context, cfg *dynamic.Configuration) er
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("request %q: %w", endpoint.String(), err)
+		return fmt.Errorf("do request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -73,10 +78,44 @@ func (c *Client) PushDynamic(ctx context.Context, cfg *dynamic.Configuration) er
 
 // GetAgentReachableIP returns an IP address the Hub plugin can reach the Agent from.
 func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
+	// First, start an ephemeral HTTP server that Traefik will try to call to make sure the Agent is reachable.
+	listener, err := net.Listen("tcp", "0.0.0.0:0")
+	if err != nil {
+		return "", err
+	}
+
+	port := listener.Addr().(*net.TCPAddr).Port
+	nonce := generateNonce(16)
+
+	mux := http.NewServeMux()
+
+	var ok bool
+	mux.HandleFunc("/", func(_ http.ResponseWriter, req *http.Request) {
+		if req.URL.Query().Get("nonce") == nonce {
+			ok = true
+		}
+	})
+
+	s := &http.Server{Handler: mux}
+	defer func() { _ = s.Close() }()
+
+	go func(s *http.Server) {
+		if err = s.Serve(listener); errors.Is(err, http.ErrServerClosed) {
+			log.Error().Err(err).Msg("Unable to serve temporary discovery server")
+			return
+		}
+	}(s)
+
+	// Then, signal Traefik to try and call us.
 	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "discover-ip"))
 	if err != nil {
 		return "", err
 	}
+
+	q := make(url.Values)
+	q.Set("port", strconv.Itoa(port))
+	q.Set("nonce", nonce)
+	endpoint.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), http.NoBody)
 	if err != nil {
@@ -85,12 +124,21 @@ func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("request %q: %w", endpoint.String(), err)
+		return "", fmt.Errorf("do request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("expected status code %d; got %d", http.StatusOK, resp.StatusCode)
+		var b []byte
+		b, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("read body: %w", err)
+		}
+		return "", fmt.Errorf("expected status code %d; got %d: %s", http.StatusOK, resp.StatusCode, bytes.TrimSpace(b))
+	}
+
+	if !ok {
+		return "", errors.New("ip discovery failed")
 	}
 
 	var ip string
@@ -99,4 +147,15 @@ func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
 	}
 
 	return ip, nil
+}
+
+func generateNonce(n int) string {
+	charSet := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = charSet[rand.Intn(len(charSet))]
+	}
+
+	return string(b)
 }
