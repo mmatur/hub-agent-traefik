@@ -100,7 +100,7 @@ func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
 	defer func() { _ = s.Close() }()
 
 	go func(s *http.Server) {
-		if err = s.Serve(listener); errors.Is(err, http.ErrServerClosed) {
+		if err = s.Serve(listener); !errors.Is(err, http.ErrServerClosed) {
 			log.Error().Err(err).Msg("Unable to serve temporary discovery server")
 			return
 		}
