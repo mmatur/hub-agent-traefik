@@ -157,7 +157,7 @@ func runAgent(cliCtx *cli.Context) error {
 
 	traefikAddr := cliCtx.String(flagTraefikAddr)
 	cfgWatcher := platform.NewConfigWatcher(15*time.Minute, platformClient)
-	mtrcsMgr, _, err := newMetrics(token, platformURL, agentCfg.Metrics, cfgWatcher)
+	metricsMgr, metricsStore, err := newMetrics(token, platformURL, agentCfg.Metrics, cfgWatcher)
 	if err != nil {
 		return err
 	}
@@ -178,7 +178,11 @@ func runAgent(cliCtx *cli.Context) error {
 	})
 
 	group.Go(func() error {
-		return mtrcsMgr.Run(ctx, traefikAddr)
+		return metricsMgr.Run(ctx, traefikAddr)
+	})
+
+	group.Go(func() error {
+		return runAlerting(ctx, token, platformURL, metricsStore)
 	})
 
 	return group.Wait()

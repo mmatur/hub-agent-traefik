@@ -1,8 +1,6 @@
 package metrics
 
 import (
-	"strings"
-
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -163,24 +161,11 @@ func (p TraefikParser) parseRouterRequestTotal(metrics []*dto.Metric) []Metric {
 }
 
 func (p TraefikParser) guessService(lbls []*dto.LabelPair) string {
-	name := getLabel(lbls, "service")
-
-	parts := strings.SplitN(name, "@", 2)
-	if len(parts) != 2 {
-		return ""
-	}
-
-	return parts[0]
+	return getLabel(lbls, "service")
 }
 
 func (p TraefikParser) guessIngress(lbls []*dto.LabelPair) (ingress string) {
-	name := getLabel(lbls, "router")
-
-	parts := strings.SplitN(name, "@", 2)
-	if len(parts) != 2 {
-		return ""
-	}
-	return parts[0]
+	return getLabel(lbls, "router")
 }
 
 func getMetricErrorName(lbls []*dto.LabelPair, statusName string) string {
