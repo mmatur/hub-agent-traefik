@@ -71,14 +71,20 @@ func (w *Watcher) Run(ctx context.Context) {
 
 			updateCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 
+			var errs []error
 			for _, fn := range w.updateFuncs {
 				if err = fn(updateCtx, cfgs); err != nil {
-					log.Error().Err(err).Msg("Unable to execute ACP watcher callback")
+					errs = append(errs, err)
 					continue
 				}
 			}
 
 			cancel()
+
+			if len(errs) > 0 {
+				log.Error().Errs("errors", errs).Msg("Unable to execute ACP watcher callbacks")
+				continue
+			}
 
 			previous = cfgs
 
