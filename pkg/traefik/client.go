@@ -46,14 +46,23 @@ func NewClient(baseURL string) (*Client, error) {
 	}, nil
 }
 
+type configRequest struct {
+	UnixNano      int64                  `json:"unixNano"`
+	Configuration *dynamic.Configuration `json:"configuration"`
+}
+
 // PushDynamic pushes a dynamic configuration.
-func (c *Client) PushDynamic(ctx context.Context, cfg *dynamic.Configuration) error {
+func (c *Client) PushDynamic(ctx context.Context, unixNano int64, cfg *dynamic.Configuration) error {
 	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "config"))
 	if err != nil {
 		return err
 	}
 
-	b, err := json.Marshal(cfg)
+	payload := configRequest{
+		UnixNano:      unixNano,
+		Configuration: cfg,
+	}
+	b, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("serialize configuration: %w", err)
 	}
@@ -147,6 +156,36 @@ func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
 	}
 
 	return ip, nil
+}
+
+// GetLastConfigReceived returns the Unix timestamp of the last configuration received, in nanoseconds.
+func (c *Client) GetLastConfigReceived(ctx context.Context) (int64, error) {
+	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "last-config-timestamp"))
+	if err != nil {
+		return 0, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), http.NoBody)
+	if err != nil {
+		return 0, fmt.Errorf("build request for %q: %w", endpoint.String(), err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("request %q: %w", endpoint.String(), err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("expected status code %d; got %d", http.StatusOK, resp.StatusCode)
+	}
+
+	var ts int64
+	if err = json.NewDecoder(resp.Body).Decode(&ts); err != nil {
+		return 0, fmt.Errorf("deserialize timestamp: %w", err)
+	}
+
+	return ts, nil
 }
 
 func generateNonce(n int) string {

@@ -13,6 +13,7 @@ import (
 	"github.com/ettle/strcase"
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/neo-agent/pkg/acp"
+	"github.com/traefik/neo-agent/pkg/certificate"
 	"github.com/traefik/neo-agent/pkg/heartbeat"
 	"github.com/traefik/neo-agent/pkg/logger"
 	"github.com/traefik/neo-agent/pkg/platform"
@@ -31,6 +32,7 @@ const (
 	flagAuthServerListenAddr    = "auth-server-listen-addr"
 	flagAuthServerReachableAddr = "auth-server-reachable-addr"
 	flagAuthServerACPDir        = "auth-server-acp-dir"
+	flagCertsDir                = "certs-dir"
 )
 
 func main() {
@@ -94,6 +96,14 @@ func run() error {
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerACPDir)},
 				Value:   "./acps",
 			},
+			// NOTE: this flag is added for development and testing only. It will be replaced once we can fetch certificates from the platform.
+			&cli.StringFlag{
+				Name:    flagCertsDir,
+				Usage:   "Directory path containing certificates",
+				EnvVars: []string{strcase.ToSNAKE(flagCertsDir)},
+				Value:   "./certs",
+				Hidden:  true,
+			},
 		},
 		Action: runAgent,
 	}
@@ -128,9 +138,8 @@ func runAgent(cliCtx *cli.Context) error {
 		return fmt.Errorf("fetch agent config: %w", err)
 	}
 
-	heartbeater := heartbeat.NewHeartbeater(platformClient)
-
-	traefikClient, err := traefik.NewClient(cliCtx.String(flagTraefikAddr))
+	traefikAddr := cliCtx.String(flagTraefikAddr)
+	traefikClient, err := traefik.NewClient(traefikAddr)
 	if err != nil {
 		return fmt.Errorf("create Traefik client: %w", err)
 	}
@@ -146,21 +155,29 @@ func runAgent(cliCtx *cli.Context) error {
 
 	log.Info().Str("addr", reachableAddr).Msg("Using Agent reachable address")
 
-	traefikManager := acp.NewTraefikManager(traefikClient, reachableAddr)
+	traefikManager := traefik.NewManager(traefikClient)
+	middlewareCfgBuilder := acp.NewMiddlewareConfigBuilder(traefikManager, reachableAddr)
 
 	acpServer := acp.NewServer(listenAddr)
 	acpWatcher := acp.NewWatcher(
 		cliCtx.String(flagAuthServerACPDir),
 		acpServer.UpdateHandler,
-		traefikManager.UpdateMiddlewares,
+		middlewareCfgBuilder.UpdateConfig,
 	)
 
-	traefikAddr := cliCtx.String(flagTraefikAddr)
+	tlsCfgBuilder := certificate.NewTLSConfigBuilder(traefikManager)
+	certificatesWatcher := certificate.NewWatcher(
+		cliCtx.String(flagCertsDir),
+		tlsCfgBuilder.UpdateConfig,
+	)
+
 	cfgWatcher := platform.NewConfigWatcher(15*time.Minute, platformClient)
 	metricsMgr, metricsStore, err := newMetrics(token, platformURL, agentCfg.Metrics, cfgWatcher)
 	if err != nil {
 		return err
 	}
+
+	heartbeater := heartbeat.NewHeartbeater(platformClient)
 
 	group, ctx := errgroup.WithContext(cliCtx.Context)
 	group.Go(func() error {
@@ -175,6 +192,16 @@ func runAgent(cliCtx *cli.Context) error {
 
 	group.Go(func() error {
 		return acpServer.Run(ctx)
+	})
+
+	group.Go(func() error {
+		certificatesWatcher.Run(ctx)
+		return nil
+	})
+
+	group.Go(func() error {
+		traefikManager.Run(ctx)
+		return nil
 	})
 
 	group.Go(func() error {

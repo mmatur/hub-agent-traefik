@@ -20,7 +20,7 @@ import (
 )
 
 // UpdateFunc is a function called when ACP are modified.
-type UpdateFunc func(ctx context.Context, cfgs map[string]*Config) error
+type UpdateFunc func(cfgs map[string]*Config) error
 
 // Watcher watches access control policy resources and calls an UpdateFunc when there is a change.
 type Watcher struct {
@@ -58,7 +58,6 @@ func (w *Watcher) Run(ctx context.Context) {
 			}
 
 			if reflect.DeepEqual(previous, configs) {
-				log.Trace().Msg("Skipping same ACPs configuration")
 				continue
 			}
 
@@ -69,17 +68,13 @@ func (w *Watcher) Run(ctx context.Context) {
 
 			log.Debug().Msg("Executing ACP watcher callbacks")
 
-			updateCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-
 			var errs []error
 			for _, fn := range w.updateFuncs {
-				if err = fn(updateCtx, cfgs); err != nil {
+				if err = fn(cfgs); err != nil {
 					errs = append(errs, err)
 					continue
 				}
 			}
-
-			cancel()
 
 			if len(errs) > 0 {
 				log.Error().Errs("errors", errs).Msg("Unable to execute ACP watcher callbacks")

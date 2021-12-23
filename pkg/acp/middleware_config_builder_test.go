@@ -1,8 +1,6 @@
 package acp
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"testing"
 
@@ -14,25 +12,25 @@ import (
 	"github.com/traefik/neo-agent/pkg/acp/jwt"
 )
 
-type TraefikClientMock struct {
-	pushDynamicCallback func(*dynamic.Configuration) error
+type traefikManagerMock struct {
+	setMiddlewaresConfig func(map[string]*dynamic.Middleware)
 }
 
-func (t TraefikClientMock) PushDynamic(ctx context.Context, cfg *dynamic.Configuration) error {
-	return t.pushDynamicCallback(cfg)
+func (m traefikManagerMock) SetMiddlewaresConfig(mdlwrs map[string]*dynamic.Middleware) {
+	m.setMiddlewaresConfig(mdlwrs)
 }
 
-func TestTraefikManager_Update(t *testing.T) {
+func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
 	const reachableAddr = "127.0.0.1:1234"
 
 	tests := []struct {
 		desc     string
-		acpCfgs  map[string]*Config
+		acps     map[string]*Config
 		expected map[string]*dynamic.Middleware
 	}{
 		{
-			desc: "Update from a JWT ACP",
-			acpCfgs: map[string]*Config{
+			desc: "JWT ACP",
+			acps: map[string]*Config{
 				"jwtTest": {
 					JWT: &jwt.Config{
 						ForwardHeaders: map[string]string{
@@ -53,8 +51,8 @@ func TestTraefikManager_Update(t *testing.T) {
 			},
 		},
 		{
-			desc: "Update from a BasicAuth ACP",
-			acpCfgs: map[string]*Config{
+			desc: "BasicAuth ACP",
+			acps: map[string]*Config{
 				"basicAuthTest": {
 					BasicAuth: &basicauth.Config{
 						StripAuthorizationHeader: true,
@@ -72,8 +70,8 @@ func TestTraefikManager_Update(t *testing.T) {
 			},
 		},
 		{
-			desc: "Update from a DigestAuth ACP",
-			acpCfgs: map[string]*Config{
+			desc: "DigestAuth ACP",
+			acps: map[string]*Config{
 				"digestAuthTest": {
 					DigestAuth: &digestauth.Config{
 						StripAuthorizationHeader: true,
@@ -95,31 +93,18 @@ func TestTraefikManager_Update(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.desc, func(t *testing.T) {
-			var got *dynamic.Configuration
-			traefikClient := TraefikClientMock{pushDynamicCallback: func(configuration *dynamic.Configuration) error {
-				got = configuration
-				return nil
-			}}
+			var got map[string]*dynamic.Middleware
+			traefikManager := traefikManagerMock{
+				setMiddlewaresConfig: func(m map[string]*dynamic.Middleware) {
+					got = m
+				},
+			}
 
-			traefikManager := NewTraefikManager(traefikClient, reachableAddr)
-			err := traefikManager.UpdateMiddlewares(context.Background(), test.acpCfgs)
+			builder := NewMiddlewareConfigBuilder(traefikManager, reachableAddr)
+			err := builder.UpdateConfig(test.acps)
 			require.NoError(t, err)
 
-			expected := emptyDynamicConfiguration()
-			expected.HTTP.Middlewares = test.expected
-			assert.Equal(t, expected, got)
+			assert.Equal(t, test.expected, got)
 		})
 	}
-}
-
-func TestTraefikManager_UpdateError(t *testing.T) {
-	traefikClient := TraefikClientMock{
-		pushDynamicCallback: func(configuration *dynamic.Configuration) error {
-			return errors.New("expect error from update")
-		},
-	}
-
-	traefikManager := NewTraefikManager(traefikClient, "")
-	err := traefikManager.UpdateMiddlewares(context.Background(), nil)
-	assert.Error(t, err)
 }
