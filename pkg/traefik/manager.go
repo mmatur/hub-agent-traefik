@@ -2,6 +2,7 @@ package traefik
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,7 +15,7 @@ import (
 // Traefik allows pushing dynamic configurations to a Traefik instance.
 type Traefik interface {
 	PushDynamic(ctx context.Context, unixNano int64, cfg *dynamic.Configuration) error
-	GetLastConfigReceived(ctx context.Context) (int64, error)
+	GetPluginState(ctx context.Context) (PluginState, error)
 }
 
 // Manager manages Traefik dynamic configurations.
@@ -22,45 +23,56 @@ type Manager struct {
 	dynCfgMu sync.RWMutex
 	dynCfg   *dynamic.Configuration
 
-	refresh chan struct{}
+	pluginNameMu sync.RWMutex
+	pluginName   string
 	// Accessed atomically.
 	lastRefreshUnixNano int64
-	syncInterval        time.Duration
+
+	refresh      chan struct{}
+	syncInterval time.Duration
 
 	traefik Traefik
 }
 
 // NewManager returns a new Manager.
-func NewManager(traefik Traefik) *Manager {
+func NewManager(ctx context.Context, traefik Traefik) (*Manager, error) {
+	ps, err := traefik.GetPluginState(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get plugin state: %w", err)
+	}
+
 	return &Manager{
 		dynCfg:       emptyDynamicConfiguration(),
+		pluginName:   ps.PluginName,
 		refresh:      make(chan struct{}),
 		syncInterval: 15 * time.Second,
 		traefik:      traefik,
-	}
+	}, nil
 }
 
 // Run runs the Manager.
 func (m *Manager) Run(ctx context.Context) {
-	go m.runConfigSync(ctx)
+	go m.runPluginStateSync(ctx)
 
 	for {
 		select {
 		case <-m.refresh:
-			unixNano := time.Now().UnixNano()
-			atomic.StoreInt64(&m.lastRefreshUnixNano, unixNano)
-
 			pushCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+
+			unixNano := time.Now().UnixNano()
 
 			m.dynCfgMu.RLock()
 			if err := m.traefik.PushDynamic(pushCtx, unixNano, m.dynCfg); err != nil {
+				m.dynCfgMu.RUnlock()
 				log.Error().Err(err).Msg("Unable to push Traefik dynamic configuration")
 				cancel()
-				m.dynCfgMu.RUnlock()
+				atomic.StoreInt64(&m.lastRefreshUnixNano, unixNano)
 				continue
 			}
 
 			cancel()
+
+			atomic.StoreInt64(&m.lastRefreshUnixNano, unixNano)
 
 			log.Trace().
 				Int("middlewares", len(m.dynCfg.HTTP.Middlewares)).
@@ -75,22 +87,26 @@ func (m *Manager) Run(ctx context.Context) {
 	}
 }
 
-func (m *Manager) runConfigSync(ctx context.Context) {
+func (m *Manager) runPluginStateSync(ctx context.Context) {
 	t := time.NewTicker(m.syncInterval)
 	defer t.Stop()
 
 	for {
 		select {
 		case <-t.C:
-			ts, err := m.traefik.GetLastConfigReceived(ctx)
+			ps, err := m.traefik.GetPluginState(ctx)
 			if err != nil {
-				log.Error().Err(err).Msg("Unable to get last configuration received by Traefik")
+				log.Error().Err(err).Msg("Unable to get last Hub plugin state")
 				continue
 			}
 
+			m.pluginNameMu.Lock()
+			m.pluginName = ps.PluginName
+			m.pluginNameMu.Unlock()
+
 			curr := atomic.LoadInt64(&m.lastRefreshUnixNano)
-			if curr != ts {
-				log.Info().Int64("want", curr).Int64("have", ts).Msg("Traefik configuration is out dated, refreshing it")
+			if curr != ps.LastConfigUnixNano {
+				log.Info().Int64("want", curr).Int64("have", ps.LastConfigUnixNano).Msg("Traefik configuration is out dated, refreshing it")
 				m.refresh <- struct{}{}
 			}
 
@@ -98,6 +114,14 @@ func (m *Manager) runConfigSync(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// PluginName returns the current Hub plugin name.
+func (m *Manager) PluginName() string {
+	m.pluginNameMu.RLock()
+	defer m.pluginNameMu.RUnlock()
+
+	return m.pluginName
 }
 
 // SetMiddlewaresConfig sets middlewares to be pushed to Traefik.

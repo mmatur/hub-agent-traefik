@@ -2,6 +2,7 @@ package acp
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -103,6 +104,14 @@ func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
 			builder := NewMiddlewareConfigBuilder(traefikManager, reachableAddr)
 			err := builder.UpdateConfig(test.acps)
 			require.NoError(t, err)
+
+			for k := range got {
+				sort.Strings(got[k].ForwardAuth.AuthResponseHeaders)
+			}
+
+			for k := range test.expected {
+				sort.Strings(test.expected[k].ForwardAuth.AuthResponseHeaders)
+			}
 
 			assert.Equal(t, test.expected, got)
 		})

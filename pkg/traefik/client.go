@@ -158,34 +158,40 @@ func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
 	return ip, nil
 }
 
-// GetLastConfigReceived returns the Unix timestamp of the last configuration received, in nanoseconds.
-func (c *Client) GetLastConfigReceived(ctx context.Context) (int64, error) {
-	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "last-config-timestamp"))
+// PluginState is the state of a Hub plugin.
+type PluginState struct {
+	PluginName         string `json:"pluginName"`
+	LastConfigUnixNano int64  `json:"lastConfigUnixNano"`
+}
+
+// GetPluginState returns the current PluginState.
+func (c *Client) GetPluginState(ctx context.Context) (PluginState, error) {
+	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "state"))
 	if err != nil {
-		return 0, err
+		return PluginState{}, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), http.NoBody)
 	if err != nil {
-		return 0, fmt.Errorf("build request for %q: %w", endpoint.String(), err)
+		return PluginState{}, fmt.Errorf("build request for %q: %w", endpoint.String(), err)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("request %q: %w", endpoint.String(), err)
+		return PluginState{}, fmt.Errorf("request %q: %w", endpoint.String(), err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("expected status code %d; got %d", http.StatusOK, resp.StatusCode)
+		return PluginState{}, fmt.Errorf("expected status code %d; got %d", http.StatusOK, resp.StatusCode)
 	}
 
-	var ts int64
-	if err = json.NewDecoder(resp.Body).Decode(&ts); err != nil {
-		return 0, fmt.Errorf("deserialize timestamp: %w", err)
+	var ps PluginState
+	if err = json.NewDecoder(resp.Body).Decode(&ps); err != nil {
+		return PluginState{}, fmt.Errorf("deserialize plugin state: %w", err)
 	}
 
-	return ts, nil
+	return ps, nil
 }
 
 func generateNonce(n int) string {

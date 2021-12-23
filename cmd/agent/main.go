@@ -155,7 +155,11 @@ func runAgent(cliCtx *cli.Context) error {
 
 	log.Info().Str("addr", reachableAddr).Msg("Using Agent reachable address")
 
-	traefikManager := traefik.NewManager(traefikClient)
+	traefikManager, err := traefik.NewManager(cliCtx.Context, traefikClient)
+	if err != nil {
+		return fmt.Errorf("new Traefik manager: %w", err)
+	}
+
 	middlewareCfgBuilder := acp.NewMiddlewareConfigBuilder(traefikManager, reachableAddr)
 
 	acpServer := acp.NewServer(listenAddr)
