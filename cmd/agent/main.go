@@ -17,6 +17,9 @@ import (
 	"github.com/traefik/neo-agent/pkg/heartbeat"
 	"github.com/traefik/neo-agent/pkg/logger"
 	"github.com/traefik/neo-agent/pkg/platform"
+	"github.com/traefik/neo-agent/pkg/topology"
+	"github.com/traefik/neo-agent/pkg/topology/state"
+	topostore "github.com/traefik/neo-agent/pkg/topology/store"
 	"github.com/traefik/neo-agent/pkg/traefik"
 	"github.com/traefik/neo-agent/pkg/version"
 	"github.com/urfave/cli/v2"
@@ -129,13 +132,9 @@ func runAgent(cliCtx *cli.Context) error {
 		return fmt.Errorf("new platform client: %w", err)
 	}
 
-	if err = platformClient.Link(cliCtx.Context); err != nil {
-		return fmt.Errorf("link agent: %w", err)
-	}
-
-	agentCfg, err := platformClient.GetConfig(cliCtx.Context)
+	agentCfg, clusterID, err := initAgent(cliCtx.Context, platformClient)
 	if err != nil {
-		return fmt.Errorf("fetch agent config: %w", err)
+		return fmt.Errorf("get platform config: %w", err)
 	}
 
 	traefikAddr := cliCtx.String(flagTraefikAddr)
@@ -160,21 +159,28 @@ func runAgent(cliCtx *cli.Context) error {
 		return fmt.Errorf("new Traefik manager: %w", err)
 	}
 
-	middlewareCfgBuilder := acp.NewMiddlewareConfigBuilder(traefikManager, reachableAddr)
-
 	acpServer := acp.NewServer(listenAddr)
+	middlewareCfgBuilder := acp.NewMiddlewareConfigBuilder(traefikManager, reachableAddr)
+	fetcher := state.NewFetcher(clusterID, traefikManager)
 	acpWatcher := acp.NewWatcher(
 		cliCtx.String(flagAuthServerACPDir),
 		acpServer.UpdateHandler,
 		middlewareCfgBuilder.UpdateConfig,
+		fetcher.UpdateACP,
 	)
 
 	tlsCfgBuilder := certificate.NewTLSConfigBuilder(traefikManager)
-	certificatesWatcher := certificate.NewWatcher(
-		cliCtx.String(flagCertsDir),
-		tlsCfgBuilder.UpdateConfig,
-	)
+	certificatesWatcher := certificate.NewWatcher(cliCtx.String(flagCertsDir), tlsCfgBuilder.UpdateConfig)
 
+	store, err := topostore.New(cliCtx.Context, topostore.Config{
+		TopologyConfig: agentCfg.Topology,
+		Token:          token,
+	})
+	if err != nil {
+		return fmt.Errorf("create topology store: %w", err)
+	}
+
+	topologyWatcher := topology.NewWatcher(fetcher, store)
 	cfgWatcher := platform.NewConfigWatcher(15*time.Minute, platformClient)
 	metricsMgr, metricsStore, err := newMetrics(token, platformURL, agentCfg.Metrics, cfgWatcher)
 	if err != nil {
@@ -216,6 +222,11 @@ func runAgent(cliCtx *cli.Context) error {
 		return runAlerting(ctx, token, platformURL, metricsStore)
 	})
 
+	group.Go(func() error {
+		topologyWatcher.Start(ctx)
+		return nil
+	})
+
 	return group.Wait()
 }
 
@@ -231,4 +242,18 @@ func getAgentReachableAddress(ctx context.Context, traefikClient *traefik.Client
 	}
 
 	return fmt.Sprintf("http://%s:%s", reachableIP, port), nil
+}
+
+func initAgent(ctx context.Context, platformClient *platform.Client) (platform.Config, string, error) {
+	clusterID, err := platformClient.Link(ctx)
+	if err != nil {
+		return platform.Config{}, "", fmt.Errorf("link agent: %w", err)
+	}
+
+	agentCfg, err := platformClient.GetConfig(ctx)
+	if err != nil {
+		return platform.Config{}, "", fmt.Errorf("fetch agent config: %w", err)
+	}
+
+	return agentCfg, clusterID, nil
 }

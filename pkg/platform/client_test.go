@@ -20,11 +20,13 @@ const testToken = "123"
 func TestClient_Link(t *testing.T) {
 	tests := []struct {
 		desc             string
+		returnClusterID  string
 		returnStatusCode int
 		wantErr          assert.ErrorAssertionFunc
 	}{
 		{
 			desc:             "cluster successfully linked",
+			returnClusterID:  "clusterID",
 			returnStatusCode: http.StatusOK,
 			wantErr:          assert.NoError,
 		},
@@ -68,6 +70,8 @@ func TestClient_Link(t *testing.T) {
 				}
 
 				rw.WriteHeader(test.returnStatusCode)
+				err = json.NewEncoder(rw).Encode(linkClusterResp{ClusterID: test.returnClusterID})
+				require.NoError(t, err)
 			})
 
 			srv := httptest.NewServer(mux)
@@ -78,9 +82,12 @@ func TestClient_Link(t *testing.T) {
 			require.NoError(t, err)
 			c.httpClient = srv.Client()
 
-			err = c.Link(context.Background())
+			clusterID, err := c.Link(context.Background())
 			test.wantErr(t, err)
 
+			if test.returnStatusCode == http.StatusOK {
+				require.Equal(t, clusterID, test.returnClusterID)
+			}
 			require.Equal(t, 1, callCount)
 		})
 	}

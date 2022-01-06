@@ -14,6 +14,7 @@ import (
 
 // Traefik allows pushing dynamic configurations to a Traefik instance.
 type Traefik interface {
+	GetDynamic(ctx context.Context) (*dynamic.Configuration, error)
 	PushDynamic(ctx context.Context, unixNano int64, cfg *dynamic.Configuration) error
 	GetPluginState(ctx context.Context) (PluginState, error)
 }
@@ -85,6 +86,11 @@ func (m *Manager) Run(ctx context.Context) {
 			return
 		}
 	}
+}
+
+// GetDynamic returns the dynamic configuration.
+func (m *Manager) GetDynamic(ctx context.Context) (*dynamic.Configuration, error) {
+	return m.traefik.GetDynamic(ctx)
 }
 
 func (m *Manager) runPluginStateSync(ctx context.Context) {

@@ -46,6 +46,43 @@ func NewClient(baseURL string) (*Client, error) {
 	}, nil
 }
 
+// RunTimeRepresentation holds the dynamic configuration return by Traefik API.
+type RunTimeRepresentation struct {
+	Routers  map[string]*dynamic.Router  `json:"routers,omitempty"`
+	Services map[string]*dynamic.Service `json:"services,omitempty"`
+}
+
+// GetDynamic gets the dynamic configuration.
+func (c *Client) GetDynamic(ctx context.Context) (*dynamic.Configuration, error) {
+	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "api/rawdata"))
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("build request for %q: %w", endpoint.String(), err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request %q: %w", endpoint.String(), err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var rawData RunTimeRepresentation
+	if err := json.NewDecoder(resp.Body).Decode(&rawData); err != nil {
+		return nil, fmt.Errorf("decode rawdata: %w", err)
+	}
+
+	return &dynamic.Configuration{
+		HTTP: &dynamic.HTTPConfiguration{
+			Routers:  rawData.Routers,
+			Services: rawData.Services,
+		},
+	}, nil
+}
+
 type configRequest struct {
 	UnixNano      int64                  `json:"unixNano"`
 	Configuration *dynamic.Configuration `json:"configuration"`

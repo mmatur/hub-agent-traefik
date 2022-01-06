@@ -54,56 +54,66 @@ type linkClusterReq struct {
 	Platform string `json:"platform"`
 }
 
+type linkClusterResp struct {
+	ClusterID string `json:"clusterId"`
+}
+
 // Link links the agent to the Hub platform.
-func (c *Client) Link(ctx context.Context) error {
+func (c *Client) Link(ctx context.Context) (clusterID string, err error) {
 	body, err := json.Marshal(linkClusterReq{Platform: "other"})
 	if err != nil {
-		return fmt.Errorf("marshal link agent request: %w", err)
+		return "", fmt.Errorf("marshal link agent request: %w", err)
 	}
 
 	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "link"))
 	if err != nil {
-		return fmt.Errorf("parse endpoint: %w", err)
+		return "", fmt.Errorf("parse endpoint: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("build request: %w", err)
+		return "", fmt.Errorf("build request: %w", err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.token)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		apiErr := APIError{StatusCode: resp.StatusCode}
 		if err = json.NewDecoder(resp.Body).Decode(&apiErr); err != nil {
-			return fmt.Errorf("failed with code %d: decode response: %w", resp.StatusCode, err)
+			return "", fmt.Errorf("failed with code %d: decode response: %w", resp.StatusCode, err)
 		}
 
-		return apiErr
+		return "", apiErr
 	}
 
-	return nil
+	var linkResp linkClusterResp
+	if err = json.NewDecoder(resp.Body).Decode(&linkResp); err != nil {
+		return "", fmt.Errorf("decode link agent resp: %w", err)
+	}
+
+	return linkResp.ClusterID, nil
 }
 
-// Config holds the configuration of the offer.
+// Config holds the configuration of the agent.
 type Config struct {
-	Metrics MetricsConfig `json:"metrics"`
+	Metrics  MetricsConfig  `json:"metrics"`
+	Topology TopologyConfig `json:"topology"`
 }
 
-// TopologyConfig holds the topology part of the offer config.
+// TopologyConfig holds the topology part of the agent config.
 type TopologyConfig struct {
 	GitProxyHost string `json:"gitProxyHost,omitempty"`
 	GitOrgName   string `json:"gitOrgName,omitempty"`
 	GitRepoName  string `json:"gitRepoName,omitempty"`
 }
 
-// MetricsConfig holds the metrics part of the offer config.
+// MetricsConfig holds the metrics part of the agent config.
 type MetricsConfig struct {
 	Interval time.Duration `json:"interval"`
 	Tables   []string      `json:"tables"`
