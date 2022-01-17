@@ -19,7 +19,6 @@ require (
 	github.com/vulcand/predicate v1.1.0
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	gopkg.in/square/go-jose.v2 v2.6.0
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
 
 require (
@@ -46,6 +45,7 @@ require (
 	golang.org/x/sys v0.0.0-20210831042530-f4d43177bf5e // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
 
 replace github.com/abbot/go-http-auth => github.com/containous/go-http-auth v0.4.1-0.20210329152427-e70ce7ef1ade

@@ -4,37 +4,32 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/neo-agent/pkg/acp/basicauth"
 	"github.com/traefik/neo-agent/pkg/acp/digestauth"
 	"github.com/traefik/neo-agent/pkg/acp/jwt"
-	"gopkg.in/yaml.v3"
 )
 
 // UpdateFunc is a function called when ACP are modified.
-type UpdateFunc func(cfgs map[string]*Config) error
+type UpdateFunc func(cfgs map[string]Config) error
 
 // Watcher watches access control policy resources and calls an UpdateFunc when there is a change.
 type Watcher struct {
 	refreshInterval time.Duration
-	acpDir          string
+	client          *Client
 
 	updateFuncs []UpdateFunc
 }
 
 // NewWatcher returns a new watcher to track ACP resources.
-func NewWatcher(acpDir string, funcs ...UpdateFunc) *Watcher {
+func NewWatcher(client *Client, funcs ...UpdateFunc) *Watcher {
 	return &Watcher{
-		refreshInterval: 5 * time.Second,
-		acpDir:          acpDir,
+		refreshInterval: 30 * time.Second,
+		client:          client,
 		updateFuncs:     funcs,
 	}
 }
@@ -44,16 +39,16 @@ func (w *Watcher) Run(ctx context.Context) {
 	t := time.NewTicker(w.refreshInterval)
 	defer t.Stop()
 
-	var previous map[string]*Config
+	var previous map[string]Config
 
-	log.Info().Str("directory", w.acpDir).Msg("Starting ACP watcher")
+	log.Info().Msg("Starting ACP watcher")
 
 	for {
 		select {
 		case <-t.C:
-			configs, err := readACPDir(w.acpDir)
+			configs, err := w.client.GetACPs(ctx)
 			if err != nil {
-				log.Error().Err(err).Str("directory", w.acpDir).Msg("Unable to read ACP from directory")
+				log.Error().Err(err).Msg("Unable to read ACP")
 				continue
 			}
 
@@ -61,16 +56,11 @@ func (w *Watcher) Run(ctx context.Context) {
 				continue
 			}
 
-			cfgs := make(map[string]*Config, len(configs))
-			for k, v := range configs {
-				cfgs[k] = v
-			}
-
 			log.Debug().Msg("Executing ACP watcher callbacks")
 
 			var errs []error
 			for _, fn := range w.updateFuncs {
-				if err = fn(cfgs); err != nil {
+				if err = fn(configs); err != nil {
 					errs = append(errs, err)
 					continue
 				}
@@ -81,7 +71,7 @@ func (w *Watcher) Run(ctx context.Context) {
 				continue
 			}
 
-			previous = cfgs
+			previous = configs
 
 		case <-ctx.Done():
 			return
@@ -89,44 +79,7 @@ func (w *Watcher) Run(ctx context.Context) {
 	}
 }
 
-func readACPDir(dir string) (map[string]*Config, error) {
-	cfgs := make(map[string]*Config)
-
-	if err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() {
-			return nil
-		}
-
-		acpName := filepath.Base(strings.TrimSuffix(path, filepath.Ext(path)))
-		if _, ok := cfgs[acpName]; ok {
-			return fmt.Errorf("multiple ACP named %q defined", acpName)
-		}
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read file %q: %w", path, err)
-		}
-
-		var cfg Config
-		if err = yaml.Unmarshal(data, &cfg); err != nil {
-			return fmt.Errorf("deserialize ACP configuration: %w", err)
-		}
-
-		cfgs[acpName] = &cfg
-
-		return nil
-	}); err != nil {
-		return nil, fmt.Errorf("walk directory: %w", err)
-	}
-
-	return cfgs, nil
-}
-
-func buildRoutes(cfgs map[string]*Config) (http.Handler, error) {
+func buildRoutes(cfgs map[string]Config) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	for name, cfg := range cfgs {

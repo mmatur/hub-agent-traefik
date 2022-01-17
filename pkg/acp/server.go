@@ -27,7 +27,7 @@ func NewServer(listenAddr string) *Server {
 }
 
 // UpdateHandler updates auth routes served by the Server.
-func (s *Server) UpdateHandler(cfgs map[string]*Config) error {
+func (s *Server) UpdateHandler(cfgs map[string]Config) error {
 	routes, err := buildRoutes(cfgs)
 	if err != nil {
 		return fmt.Errorf("build routes: %w", err)

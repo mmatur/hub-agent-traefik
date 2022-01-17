@@ -213,7 +213,7 @@ func TestFetcher_FetchState(t *testing.T) {
 			require.NoError(t, err)
 
 			fetcher := NewFetcher(clusterID, traefikManager)
-			fetcher.acps = map[string]*acp.Config{
+			fetcher.acps = map[string]acp.Config{
 				"my-acps": {
 					JWT: &jwt.Config{
 						SigningSecret: "secret",
@@ -232,12 +232,12 @@ func TestFetcher_FetchState(t *testing.T) {
 func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 	tests := []struct {
 		desc           string
-		acps           map[string]*acp.Config
+		acps           map[string]acp.Config
 		wantACPCluster map[string]*AccessControlPolicy
 	}{
 		{
 			desc: "Empty",
-			acps: map[string]*acp.Config{
+			acps: map[string]acp.Config{
 				"my-acps": {
 					JWT: &jwt.Config{
 						SigningSecret: "secret",
@@ -257,7 +257,7 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 		},
 		{
 			desc: "JWT access control policy",
-			acps: map[string]*acp.Config{
+			acps: map[string]acp.Config{
 				"my-acps": {
 					JWT: &jwt.Config{
 						SigningSecret:              "titi",
@@ -293,7 +293,7 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 		},
 		{
 			desc: "Obfuscation doesn't run when fields are empty",
-			acps: map[string]*acp.Config{
+			acps: map[string]acp.Config{
 				"my-acps": {
 					JWT: &jwt.Config{
 						Claims: "iss=titi",
@@ -313,7 +313,7 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 		},
 		{
 			desc: "Basic Auth access control policy",
-			acps: map[string]*acp.Config{
+			acps: map[string]acp.Config{
 				"my-acps": {
 					BasicAuth: &basicauth.Config{
 						Users:                    basicauth.Users([]string{"toto:secret", "titi:secret"}),
@@ -337,7 +337,7 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 		},
 		{
 			desc: "Digest Auth access control policy",
-			acps: map[string]*acp.Config{
+			acps: map[string]acp.Config{
 				"my-acps": {
 					DigestAuth: &digestauth.Config{
 						Users:                    basicauth.Users([]string{"toto:realm:secret", "titi:realm:secret"}),

@@ -34,7 +34,6 @@ const (
 	flagPlatformURL             = "platform-url"
 	flagAuthServerListenAddr    = "auth-server-listen-addr"
 	flagAuthServerReachableAddr = "auth-server-reachable-addr"
-	flagAuthServerACPDir        = "auth-server-acp-dir"
 	flagCertsDir                = "certs-dir"
 )
 
@@ -92,12 +91,6 @@ func run() error {
 				Name:    flagAuthServerReachableAddr,
 				Usage:   "Address on which Traefik can reach the Agent auth server. Required when the automatic IP discovery fails",
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerReachableAddr)},
-			},
-			&cli.StringFlag{
-				Name:    flagAuthServerACPDir,
-				Usage:   "Directory path containing Access Control Policy configurations",
-				EnvVars: []string{strcase.ToSNAKE(flagAuthServerACPDir)},
-				Value:   "./acps",
 			},
 			// NOTE: this flag is added for development and testing only. It will be replaced once we can fetch certificates from the platform.
 			&cli.StringFlag{
@@ -159,11 +152,17 @@ func runAgent(cliCtx *cli.Context) error {
 		return fmt.Errorf("new Traefik manager: %w", err)
 	}
 
-	acpServer := acp.NewServer(listenAddr)
 	middlewareCfgBuilder := acp.NewMiddlewareConfigBuilder(traefikManager, reachableAddr)
+
+	acpClient, err := acp.NewClient(platformURL, token)
+	if err != nil {
+		return fmt.Errorf("fetch agent config: %w", err)
+	}
+
+	acpServer := acp.NewServer(listenAddr)
 	fetcher := state.NewFetcher(clusterID, traefikManager)
 	acpWatcher := acp.NewWatcher(
-		cliCtx.String(flagAuthServerACPDir),
+		acpClient,
 		acpServer.UpdateHandler,
 		middlewareCfgBuilder.UpdateConfig,
 		fetcher.UpdateACP,

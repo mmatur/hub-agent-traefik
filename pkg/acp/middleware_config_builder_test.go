@@ -26,12 +26,12 @@ func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
 
 	tests := []struct {
 		desc     string
-		acps     map[string]*Config
+		acps     map[string]Config
 		expected map[string]*dynamic.Middleware
 	}{
 		{
 			desc: "JWT ACP",
-			acps: map[string]*Config{
+			acps: map[string]Config{
 				"jwtTest": {
 					JWT: &jwt.Config{
 						ForwardHeaders: map[string]string{
@@ -53,7 +53,7 @@ func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
 		},
 		{
 			desc: "BasicAuth ACP",
-			acps: map[string]*Config{
+			acps: map[string]Config{
 				"basicAuthTest": {
 					BasicAuth: &basicauth.Config{
 						StripAuthorizationHeader: true,
@@ -72,7 +72,7 @@ func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
 		},
 		{
 			desc: "DigestAuth ACP",
-			acps: map[string]*Config{
+			acps: map[string]Config{
 				"digestAuthTest": {
 					DigestAuth: &digestauth.Config{
 						StripAuthorizationHeader: true,

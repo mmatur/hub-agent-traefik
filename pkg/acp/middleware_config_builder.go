@@ -27,7 +27,7 @@ func NewMiddlewareConfigBuilder(traefik TraefikManager, authServerReachableAddr 
 }
 
 // UpdateConfig updates Traefik with middlewares for the given ACPs.
-func (m MiddlewareConfigBuilder) UpdateConfig(cfgs map[string]*Config) error {
+func (m MiddlewareConfigBuilder) UpdateConfig(cfgs map[string]Config) error {
 	middlewares := make(map[string]*dynamic.Middleware)
 
 	for polName, cfg := range cfgs {
@@ -49,7 +49,7 @@ func (m MiddlewareConfigBuilder) UpdateConfig(cfgs map[string]*Config) error {
 	return nil
 }
 
-func headerToForward(cfg *Config) ([]string, error) {
+func headerToForward(cfg Config) ([]string, error) {
 	var headerToFwd []string
 
 	switch {

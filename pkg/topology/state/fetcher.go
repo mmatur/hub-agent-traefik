@@ -19,7 +19,7 @@ type Fetcher struct {
 	traefikManager *traefik.Manager
 
 	acpsMu sync.RWMutex
-	acps   map[string]*acp.Config
+	acps   map[string]acp.Config
 }
 
 // NewFetcher returns a new Fetcher.
@@ -27,7 +27,7 @@ func NewFetcher(clusterID string, c *traefik.Manager) *Fetcher {
 	return &Fetcher{
 		clusterID:      clusterID,
 		traefikManager: c,
-		acps:           map[string]*acp.Config{},
+		acps:           map[string]acp.Config{},
 	}
 }
 
@@ -54,7 +54,8 @@ func (f *Fetcher) FetchState(ctx context.Context) (*Cluster, error) {
 	f.acpsMu.RLock()
 	cluster.AccessControlPolicies = make(map[string]*AccessControlPolicy)
 	for name, policy := range f.acps {
-		cluster.AccessControlPolicies[name+"@"+pluginName] = f.buildACP(name+"@"+pluginName, policy)
+		policy := policy
+		cluster.AccessControlPolicies[name+"@"+pluginName] = f.buildACP(name+"@"+pluginName, &policy)
 	}
 	f.acpsMu.RUnlock()
 
@@ -138,7 +139,7 @@ func (f *Fetcher) buildIngressRoute(name string, router *dynamic.Router, acps ma
 }
 
 // UpdateACP updates ACPs held by the fetcher.
-func (f *Fetcher) UpdateACP(cfgs map[string]*acp.Config) error {
+func (f *Fetcher) UpdateACP(cfgs map[string]acp.Config) error {
 	f.acpsMu.Lock()
 	defer f.acpsMu.Unlock()
 
