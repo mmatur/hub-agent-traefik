@@ -34,7 +34,7 @@ const (
 	flagPlatformURL             = "platform-url"
 	flagAuthServerListenAddr    = "auth-server-listen-addr"
 	flagAuthServerReachableAddr = "auth-server-reachable-addr"
-	flagCertsDir                = "certs-dir"
+	flagAuthServerACPDir        = "auth-server-acp-dir"
 )
 
 func main() {
@@ -92,13 +92,11 @@ func run() error {
 				Usage:   "Address on which Traefik can reach the Agent auth server. Required when the automatic IP discovery fails",
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerReachableAddr)},
 			},
-			// NOTE: this flag is added for development and testing only. It will be replaced once we can fetch certificates from the platform.
 			&cli.StringFlag{
-				Name:    flagCertsDir,
-				Usage:   "Directory path containing certificates",
-				EnvVars: []string{strcase.ToSNAKE(flagCertsDir)},
-				Value:   "./certs",
-				Hidden:  true,
+				Name:    flagAuthServerACPDir,
+				Usage:   "Directory path containing Access Control Policy configurations",
+				EnvVars: []string{strcase.ToSNAKE(flagAuthServerACPDir)},
+				Value:   "./acps",
 			},
 		},
 		Action: runAgent,
@@ -168,8 +166,12 @@ func runAgent(cliCtx *cli.Context) error {
 		fetcher.UpdateACP,
 	)
 
-	tlsCfgBuilder := certificate.NewTLSConfigBuilder(traefikManager)
-	certificatesWatcher := certificate.NewWatcher(cliCtx.String(flagCertsDir), tlsCfgBuilder.UpdateConfig)
+	certClient, err := certificate.NewClient(platformURL, token)
+	if err != nil {
+		return fmt.Errorf("create certificate client: %w", err)
+	}
+	tlsManager := certificate.NewTLSConfigBuilder(traefikManager, certClient)
+	traefikManager.AddUpdateListener(tlsManager.ObtainCertificates)
 
 	store, err := topostore.New(cliCtx.Context, topostore.Config{
 		TopologyConfig: agentCfg.Topology,
@@ -204,7 +206,7 @@ func runAgent(cliCtx *cli.Context) error {
 	})
 
 	group.Go(func() error {
-		certificatesWatcher.Run(ctx)
+		tlsManager.Run(ctx)
 		return nil
 	})
 

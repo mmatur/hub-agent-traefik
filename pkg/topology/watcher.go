@@ -32,7 +32,6 @@ func (w *Watcher) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Info().Msg("Stopping topology watcher")
 			return
 		case <-tick.C:
 			s, err := w.fetcher.FetchState(ctx)

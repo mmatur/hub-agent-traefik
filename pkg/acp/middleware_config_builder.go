@@ -27,7 +27,7 @@ func NewMiddlewareConfigBuilder(traefik TraefikManager, authServerReachableAddr 
 }
 
 // UpdateConfig updates Traefik with middlewares for the given ACPs.
-func (m MiddlewareConfigBuilder) UpdateConfig(cfgs map[string]Config) error {
+func (b MiddlewareConfigBuilder) UpdateConfig(cfgs map[string]Config) error {
 	middlewares := make(map[string]*dynamic.Middleware)
 
 	for polName, cfg := range cfgs {
@@ -38,13 +38,13 @@ func (m MiddlewareConfigBuilder) UpdateConfig(cfgs map[string]Config) error {
 
 		middlewares[polName] = &dynamic.Middleware{
 			ForwardAuth: &dynamic.ForwardAuth{
-				Address:             fmt.Sprintf("%s/%s", m.authServerReachableAddr, polName),
+				Address:             fmt.Sprintf("%s/%s", b.authServerReachableAddr, polName),
 				AuthResponseHeaders: headerToFwd,
 			},
 		}
 	}
 
-	m.traefik.SetMiddlewaresConfig(middlewares)
+	b.traefik.SetMiddlewaresConfig(middlewares)
 
 	return nil
 }

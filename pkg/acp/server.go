@@ -79,9 +79,9 @@ func (s *Server) Run(ctx context.Context) error {
 				return fmt.Errorf("close auth server: %w", err)
 			}
 		}
+
+		return nil
 	case <-srvDone:
 		return errors.New("auth server stopped")
 	}
-
-	return nil
 }

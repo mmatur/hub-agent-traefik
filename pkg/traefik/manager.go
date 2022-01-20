@@ -2,7 +2,9 @@ package traefik
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/genconf/dynamic"
 	"github.com/traefik/genconf/dynamic/tls"
+	"github.com/traefik/neo-agent/pkg/certificate"
 )
 
 // Traefik allows pushing dynamic configurations to a Traefik instance.
@@ -21,8 +24,12 @@ type Traefik interface {
 
 // Manager manages Traefik dynamic configurations.
 type Manager struct {
+	// dynCfg is the next configuration that will be pushed to Traefik.
 	dynCfgMu sync.RWMutex
 	dynCfg   *dynamic.Configuration
+
+	// lastTraefikCfg is the last configuration we pulled from Traefik.
+	lastTraefikCfg *dynamic.Configuration
 
 	pluginNameMu sync.RWMutex
 	pluginName   string
@@ -33,7 +40,13 @@ type Manager struct {
 	syncInterval time.Duration
 
 	traefik Traefik
+
+	updateFuncsMu sync.RWMutex
+	updateFuncs   []UpdateFunc
 }
+
+// UpdateFunc is a function called when Traefik dynamic configuration is modified.
+type UpdateFunc func(cfg *dynamic.Configuration) error
 
 // NewManager returns a new Manager.
 func NewManager(ctx context.Context, traefik Traefik) (*Manager, error) {
@@ -54,6 +67,7 @@ func NewManager(ctx context.Context, traefik Traefik) (*Manager, error) {
 // Run runs the Manager.
 func (m *Manager) Run(ctx context.Context) {
 	go m.runPluginStateSync(ctx)
+	go m.runTraefikDynamicSync(ctx)
 
 	for {
 		select {
@@ -88,6 +102,13 @@ func (m *Manager) Run(ctx context.Context) {
 	}
 }
 
+// AddUpdateListener adds a listener to the config watcher.
+func (m *Manager) AddUpdateListener(listener UpdateFunc) {
+	m.updateFuncsMu.Lock()
+	m.updateFuncs = append(m.updateFuncs, listener)
+	m.updateFuncsMu.Unlock()
+}
+
 // GetDynamic returns the dynamic configuration.
 func (m *Manager) GetDynamic(ctx context.Context) (*dynamic.Configuration, error) {
 	return m.traefik.GetDynamic(ctx)
@@ -120,6 +141,61 @@ func (m *Manager) runPluginStateSync(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func (m *Manager) runTraefikDynamicSync(ctx context.Context) {
+	t := time.NewTicker(m.syncInterval)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-t.C:
+			cfg, err := m.traefik.GetDynamic(ctx)
+			if err != nil {
+				log.Error().Err(err).Msg("Unable to get last Traefik dynamic configuration")
+				continue
+			}
+
+			if reflect.DeepEqual(cfg, m.lastTraefikCfg) {
+				continue
+			}
+
+			var errs []error
+			for _, fn := range m.updateFuncs {
+				if err = fn(cfg); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+			}
+
+			if len(errs) > 0 {
+				filtered := filterErrMustRetry(errs)
+				// Don't log retry errors as they are an expected behavior.
+				if len(filtered) > 0 {
+					log.Error().Errs("errors", filtered).Msg("Unable to execute Traefik dynamic configuration watcher callbacks")
+				}
+
+				continue
+			}
+
+			m.lastTraefikCfg = cfg
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func filterErrMustRetry(errs []error) []error {
+	var filtered []error
+	for _, err := range errs {
+		if errors.Is(err, certificate.ErrMustRetry) {
+			continue
+		}
+		filtered = append(filtered, err)
+	}
+
+	return filtered
 }
 
 // PluginName returns the current Hub plugin name.
