@@ -151,19 +151,20 @@ func runAgent(cliCtx *cli.Context) error {
 	}
 
 	middlewareCfgBuilder := acp.NewMiddlewareConfigBuilder(traefikManager, reachableAddr)
-
 	acpClient, err := acp.NewClient(platformURL, token)
 	if err != nil {
 		return fmt.Errorf("fetch agent config: %w", err)
 	}
 
 	acpServer := acp.NewServer(listenAddr)
+	quota := acp.NewQuota(traefikManager, agentCfg.AccessControl.MaxSecuredRoutes)
 	fetcher := state.NewFetcher(clusterID, traefikManager)
 	acpWatcher := acp.NewWatcher(
 		acpClient,
 		acpServer.UpdateHandler,
 		middlewareCfgBuilder.UpdateConfig,
 		fetcher.UpdateACP,
+		quota.UpdateACP,
 	)
 
 	certClient, err := certificate.NewClient(platformURL, token)
@@ -172,6 +173,7 @@ func runAgent(cliCtx *cli.Context) error {
 	}
 	tlsManager := certificate.NewTLSConfigBuilder(traefikManager, certClient)
 	traefikManager.AddUpdateListener(tlsManager.ObtainCertificates)
+	traefikManager.AddUpdateListener(quota.Apply)
 
 	store, err := topostore.New(cliCtx.Context, topostore.Config{
 		TopologyConfig: agentCfg.Topology,

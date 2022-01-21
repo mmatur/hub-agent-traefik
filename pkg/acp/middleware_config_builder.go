@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -10,6 +11,9 @@ import (
 // TraefikManager allows updating a TraefikManager with the latest middlewares configuration.
 type TraefikManager interface {
 	SetMiddlewaresConfig(mdlwrs map[string]*dynamic.Middleware)
+	GetDynamic(ctx context.Context) (*dynamic.Configuration, error)
+	SetRoutersConfig(routers map[string]*dynamic.Router)
+	PluginName() string
 }
 
 // MiddlewareConfigBuilder builds Traefik middlewares given ACP configurations.
@@ -42,6 +46,15 @@ func (b MiddlewareConfigBuilder) UpdateConfig(cfgs map[string]Config) error {
 				AuthResponseHeaders: headerToFwd,
 			},
 		}
+	}
+
+	middlewares["quota-exceeded"] = &dynamic.Middleware{
+		IPWhiteList: &dynamic.IPWhiteList{
+			SourceRange: []string{"8.8.8.8"},
+			IPStrategy: &dynamic.IPStrategy{
+				ExcludedIPs: []string{"0.0.0.0/0"},
+			},
+		},
 	}
 
 	b.traefik.SetMiddlewaresConfig(middlewares)

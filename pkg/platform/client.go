@@ -102,8 +102,9 @@ func (c *Client) Link(ctx context.Context) (clusterID string, err error) {
 
 // Config holds the configuration of the agent.
 type Config struct {
-	Metrics  MetricsConfig  `json:"metrics"`
-	Topology TopologyConfig `json:"topology"`
+	Metrics       MetricsConfig       `json:"metrics"`
+	Topology      TopologyConfig      `json:"topology"`
+	AccessControl AccessControlConfig `json:"accessControl"`
 }
 
 // TopologyConfig holds the topology part of the agent config.
@@ -117,6 +118,11 @@ type TopologyConfig struct {
 type MetricsConfig struct {
 	Interval time.Duration `json:"interval"`
 	Tables   []string      `json:"tables"`
+}
+
+// AccessControlConfig holds the configuration of the access control section of the offer config.
+type AccessControlConfig struct {
+	MaxSecuredRoutes int `json:"maxSecuredRoutes"`
 }
 
 // GetConfig returns the agent configuration.

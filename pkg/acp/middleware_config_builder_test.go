@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -15,10 +16,25 @@ import (
 
 type traefikManagerMock struct {
 	setMiddlewaresConfig func(map[string]*dynamic.Middleware)
+	getDynamic           func() (*dynamic.Configuration, error)
+	setRoutersConfig     func(map[string]*dynamic.Router)
+	pluginName           func() string
 }
 
 func (m traefikManagerMock) SetMiddlewaresConfig(mdlwrs map[string]*dynamic.Middleware) {
 	m.setMiddlewaresConfig(mdlwrs)
+}
+
+func (m traefikManagerMock) GetDynamic(_ context.Context) (*dynamic.Configuration, error) {
+	return m.getDynamic()
+}
+
+func (m traefikManagerMock) SetRoutersConfig(routers map[string]*dynamic.Router) {
+	m.setRoutersConfig(routers)
+}
+
+func (m traefikManagerMock) PluginName() string {
+	return m.pluginName()
 }
 
 func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
@@ -49,6 +65,14 @@ func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
 						AuthResponseHeaders: []string{"Foo", "Bar", "Authorization"},
 					},
 				},
+				"quota-exceeded": {
+					IPWhiteList: &dynamic.IPWhiteList{
+						SourceRange: []string{"8.8.8.8"},
+						IPStrategy: &dynamic.IPStrategy{
+							ExcludedIPs: []string{"0.0.0.0/0"},
+						},
+					},
+				},
 			},
 		},
 		{
@@ -66,6 +90,14 @@ func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
 					ForwardAuth: &dynamic.ForwardAuth{
 						Address:             fmt.Sprintf("%s/%s", reachableAddr, "basicAuthTest"),
 						AuthResponseHeaders: []string{"Foo", "Authorization"},
+					},
+				},
+				"quota-exceeded": {
+					IPWhiteList: &dynamic.IPWhiteList{
+						SourceRange: []string{"8.8.8.8"},
+						IPStrategy: &dynamic.IPStrategy{
+							ExcludedIPs: []string{"0.0.0.0/0"},
+						},
 					},
 				},
 			},
@@ -87,6 +119,14 @@ func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
 						AuthResponseHeaders: []string{"Bar", "Authorization"},
 					},
 				},
+				"quota-exceeded": {
+					IPWhiteList: &dynamic.IPWhiteList{
+						SourceRange: []string{"8.8.8.8"},
+						IPStrategy: &dynamic.IPStrategy{
+							ExcludedIPs: []string{"0.0.0.0/0"},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -106,11 +146,15 @@ func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
 			require.NoError(t, err)
 
 			for k := range got {
-				sort.Strings(got[k].ForwardAuth.AuthResponseHeaders)
+				if got[k].ForwardAuth != nil {
+					sort.Strings(got[k].ForwardAuth.AuthResponseHeaders)
+				}
 			}
 
 			for k := range test.expected {
-				sort.Strings(test.expected[k].ForwardAuth.AuthResponseHeaders)
+				if got[k].ForwardAuth != nil {
+					sort.Strings(test.expected[k].ForwardAuth.AuthResponseHeaders)
+				}
 			}
 
 			assert.Equal(t, test.expected, got)

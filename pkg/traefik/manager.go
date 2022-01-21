@@ -209,18 +209,27 @@ func (m *Manager) PluginName() string {
 // SetMiddlewaresConfig sets middlewares to be pushed to Traefik.
 func (m *Manager) SetMiddlewaresConfig(mdlwrs map[string]*dynamic.Middleware) {
 	m.dynCfgMu.Lock()
-	defer m.dynCfgMu.Unlock()
-
 	m.dynCfg.HTTP.Middlewares = mdlwrs
+	m.dynCfgMu.Unlock()
+
+	m.refresh <- struct{}{}
+}
+
+// SetRoutersConfig sets routers to be pushed to Traefik.
+func (m *Manager) SetRoutersConfig(routers map[string]*dynamic.Router) {
+	m.dynCfgMu.Lock()
+	m.dynCfg.HTTP.Routers = routers
+	m.dynCfgMu.Unlock()
+
 	m.refresh <- struct{}{}
 }
 
 // SetTLSConfig sets the TLS configuration to be pushed to Traefik.
 func (m *Manager) SetTLSConfig(cfg *dynamic.TLSConfiguration) {
 	m.dynCfgMu.Lock()
-	defer m.dynCfgMu.Unlock()
-
 	m.dynCfg.TLS = cfg
+	m.dynCfgMu.Unlock()
+
 	m.refresh <- struct{}{}
 }
 
