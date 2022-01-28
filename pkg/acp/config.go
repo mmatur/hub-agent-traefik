@@ -11,4 +11,6 @@ type Config struct {
 	JWT        *jwt.Config
 	BasicAuth  *basicauth.Config
 	DigestAuth *digestauth.Config
+
+	Ingresses []string `json:"ingresses"`
 }

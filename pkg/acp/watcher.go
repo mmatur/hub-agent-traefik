@@ -14,23 +14,27 @@ import (
 	"github.com/traefik/neo-agent/pkg/acp/jwt"
 )
 
-// UpdateFunc is a function called when ACP are modified.
-type UpdateFunc func(cfgs map[string]Config) error
+type (
+	// UpdatedACPFunc is a function called when ACPs are modified.
+	UpdatedACPFunc func(cfgs map[string]Config) error
+	// UpdateSecuredRouterFunc is a function called when secured ingresses are modified.
+	UpdateSecuredRouterFunc func(map[string]string) error
+)
 
 // Watcher watches access control policy resources and calls an UpdateFunc when there is a change.
 type Watcher struct {
 	refreshInterval time.Duration
 	client          *Client
 
-	updateFuncs []UpdateFunc
+	updateACPFuncs []UpdatedACPFunc
 }
 
 // NewWatcher returns a new watcher to track ACP resources.
-func NewWatcher(client *Client, funcs ...UpdateFunc) *Watcher {
+func NewWatcher(client *Client, updateACPFuncs []UpdatedACPFunc) *Watcher {
 	return &Watcher{
 		refreshInterval: 30 * time.Second,
 		client:          client,
-		updateFuncs:     funcs,
+		updateACPFuncs:  updateACPFuncs,
 	}
 }
 
@@ -39,39 +43,36 @@ func (w *Watcher) Run(ctx context.Context) {
 	t := time.NewTicker(w.refreshInterval)
 	defer t.Stop()
 
-	var previous map[string]Config
+	var previousACPs map[string]Config
 
 	log.Info().Msg("Starting ACP watcher")
 
 	for {
 		select {
 		case <-t.C:
-			configs, err := w.client.GetACPs(ctx)
+			acps, err := w.client.GetACPs(ctx)
 			if err != nil {
 				log.Error().Err(err).Msg("Unable to read ACP")
 				continue
 			}
 
-			if reflect.DeepEqual(previous, configs) {
-				continue
-			}
+			if !reflect.DeepEqual(previousACPs, acps) {
+				log.Debug().Msg("Executing ACP watcher callbacks")
 
-			log.Debug().Msg("Executing ACP watcher callbacks")
-
-			var errs []error
-			for _, fn := range w.updateFuncs {
-				if err = fn(configs); err != nil {
-					errs = append(errs, err)
-					continue
+				var errs []error
+				for _, fn := range w.updateACPFuncs {
+					if err := fn(acps); err != nil {
+						errs = append(errs, err)
+						continue
+					}
 				}
-			}
 
-			if len(errs) > 0 {
-				log.Error().Errs("errors", errs).Msg("Unable to execute ACP watcher callbacks")
-				continue
-			}
+				if len(errs) > 0 {
+					log.Error().Errs("errors", errs).Msg("Unable to execute ACP watcher callbacks")
+				}
 
-			previous = configs
+				previousACPs = acps
+			}
 
 		case <-ctx.Done():
 			return

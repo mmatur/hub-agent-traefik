@@ -9,25 +9,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/traefik/neo-agent/pkg/acp/basicauth"
 	"github.com/traefik/neo-agent/pkg/acp/jwt"
 )
 
 func TestClient_GetACPs(t *testing.T) {
-	want := map[string]Config{
-		"jwt": {
-			JWT: &jwt.Config{
-				SigningSecret: "secret",
-			},
-		},
-		"basic": {
-			BasicAuth: &basicauth.Config{
-				Users: basicauth.Users([]string{"user1"}),
-				Realm: "realm",
-			},
-		},
-	}
-
 	resp := []acpResp{
 		{
 			Name: "jwt",
@@ -35,16 +20,17 @@ func TestClient_GetACPs(t *testing.T) {
 				JWT: &jwt.Config{
 					SigningSecret: "secret",
 				},
+				Ingresses: []string{"ingress"},
 			},
 		},
-		{
-			Name: "basic",
-			Config: Config{
-				BasicAuth: &basicauth.Config{
-					Users: basicauth.Users([]string{"user1"}),
-					Realm: "realm",
-				},
+	}
+
+	want := map[string]Config{
+		"jwt": {
+			JWT: &jwt.Config{
+				SigningSecret: "secret",
 			},
+			Ingresses: []string{"ingress"},
 		},
 	}
 

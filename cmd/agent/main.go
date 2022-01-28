@@ -157,14 +157,17 @@ func runAgent(cliCtx *cli.Context) error {
 	}
 
 	acpServer := acp.NewServer(listenAddr)
-	quota := acp.NewQuota(traefikManager, agentCfg.AccessControl.MaxSecuredRoutes)
+	routerUpdater := acp.NewRouterUpdater(traefikManager, agentCfg.AccessControl.MaxSecuredRoutes)
+
 	fetcher := state.NewFetcher(clusterID, traefikManager)
 	acpWatcher := acp.NewWatcher(
 		acpClient,
-		acpServer.UpdateHandler,
-		middlewareCfgBuilder.UpdateConfig,
-		fetcher.UpdateACP,
-		quota.UpdateACP,
+		[]acp.UpdatedACPFunc{
+			acpServer.UpdateHandler,
+			middlewareCfgBuilder.UpdateConfig,
+			fetcher.UpdateACP,
+			routerUpdater.UpdateACP,
+		},
 	)
 
 	certClient, err := certificate.NewClient(platformURL, token)
@@ -173,7 +176,7 @@ func runAgent(cliCtx *cli.Context) error {
 	}
 	tlsManager := certificate.NewTLSConfigBuilder(traefikManager, certClient)
 	traefikManager.AddUpdateListener(tlsManager.ObtainCertificates)
-	traefikManager.AddUpdateListener(quota.Apply)
+	traefikManager.AddUpdateListener(routerUpdater.UpdateDynamic)
 
 	store, err := topostore.New(cliCtx.Context, topostore.Config{
 		TopologyConfig: agentCfg.Topology,

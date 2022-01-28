@@ -44,7 +44,7 @@ func NewClient(baseURL, token string) (*Client, error) {
 type acpResp struct {
 	Config
 
-	Name string
+	Name string `json:"name"`
 }
 
 // GetACPs gets ACPs from Hub.
