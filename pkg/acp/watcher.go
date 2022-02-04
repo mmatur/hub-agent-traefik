@@ -4,14 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/neo-agent/pkg/acp/basicauth"
 	"github.com/traefik/neo-agent/pkg/acp/digestauth"
 	"github.com/traefik/neo-agent/pkg/acp/jwt"
+	"gopkg.in/yaml.v2"
 )
 
 type (
@@ -24,16 +29,16 @@ type (
 // Watcher watches access control policy resources and calls an UpdateFunc when there is a change.
 type Watcher struct {
 	refreshInterval time.Duration
-	client          *Client
+	acpDir          string
 
 	updateACPFuncs []UpdatedACPFunc
 }
 
 // NewWatcher returns a new watcher to track ACP resources.
-func NewWatcher(client *Client, updateACPFuncs []UpdatedACPFunc) *Watcher {
+func NewWatcher(acpDir string, updateACPFuncs []UpdatedACPFunc) *Watcher {
 	return &Watcher{
-		refreshInterval: 30 * time.Second,
-		client:          client,
+		refreshInterval: 5 * time.Second,
+		acpDir:          acpDir,
 		updateACPFuncs:  updateACPFuncs,
 	}
 }
@@ -45,39 +50,79 @@ func (w *Watcher) Run(ctx context.Context) {
 
 	var previousACPs map[string]Config
 
-	log.Info().Msg("Starting ACP watcher")
+	log.Info().Str("directory", w.acpDir).Msg("Starting ACP watcher")
 
 	for {
 		select {
 		case <-t.C:
-			acps, err := w.client.GetACPs(ctx)
+			acps, err := readACPDir(w.acpDir)
 			if err != nil {
-				log.Error().Err(err).Msg("Unable to read ACP")
+				log.Error().Err(err).Str("directory", w.acpDir).Msg("Unable to read ACP from directory")
 				continue
 			}
 
-			if !reflect.DeepEqual(previousACPs, acps) {
-				log.Debug().Msg("Executing ACP watcher callbacks")
-
-				var errs []error
-				for _, fn := range w.updateACPFuncs {
-					if err := fn(acps); err != nil {
-						errs = append(errs, err)
-						continue
-					}
-				}
-
-				if len(errs) > 0 {
-					log.Error().Errs("errors", errs).Msg("Unable to execute ACP watcher callbacks")
-				}
-
-				previousACPs = acps
+			if reflect.DeepEqual(previousACPs, acps) {
+				continue
 			}
+
+			log.Debug().Msg("Executing ACP watcher callbacks")
+
+			var errs []error
+			for _, fn := range w.updateACPFuncs {
+				if err := fn(acps); err != nil {
+					errs = append(errs, err)
+					continue
+				}
+			}
+
+			if len(errs) > 0 {
+				log.Error().Errs("errors", errs).Msg("Unable to execute ACP watcher callbacks")
+				continue
+			}
+
+			previousACPs = acps
 
 		case <-ctx.Done():
 			return
 		}
 	}
+}
+
+func readACPDir(dir string) (map[string]Config, error) {
+	cfgs := make(map[string]Config)
+
+	if err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		acpName := filepath.Base(strings.TrimSuffix(path, filepath.Ext(path)))
+		if _, ok := cfgs[acpName]; ok {
+			return fmt.Errorf("multiple ACP named %q defined", acpName)
+		}
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read file %q: %w", path, err)
+		}
+
+		var cfg Config
+		if err = yaml.Unmarshal(data, &cfg); err != nil {
+			return fmt.Errorf("deserialize ACP configuration: %w", err)
+		}
+
+		cfgs[acpName] = cfg
+
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("walk directory: %w", err)
+	}
+
+	return cfgs, nil
 }
 
 func buildRoutes(cfgs map[string]Config) (http.Handler, error) {

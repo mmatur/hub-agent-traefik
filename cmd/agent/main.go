@@ -96,7 +96,7 @@ func run() error {
 				Name:    flagAuthServerACPDir,
 				Usage:   "Directory path containing Access Control Policy configurations",
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerACPDir)},
-				Value:   "./acps",
+				Value:   "/etc/hub-agent/acps/",
 			},
 		},
 		Action: runAgent,
@@ -151,17 +151,13 @@ func runAgent(cliCtx *cli.Context) error {
 	}
 
 	middlewareCfgBuilder := acp.NewMiddlewareConfigBuilder(traefikManager, reachableAddr)
-	acpClient, err := acp.NewClient(platformURL, token)
-	if err != nil {
-		return fmt.Errorf("fetch agent config: %w", err)
-	}
 
 	acpServer := acp.NewServer(listenAddr)
 	routerUpdater := acp.NewRouterUpdater(traefikManager, agentCfg.AccessControl.MaxSecuredRoutes)
 
 	fetcher := state.NewFetcher(clusterID, traefikManager)
 	acpWatcher := acp.NewWatcher(
-		acpClient,
+		cliCtx.String(flagAuthServerACPDir),
 		[]acp.UpdatedACPFunc{
 			acpServer.UpdateHandler,
 			middlewareCfgBuilder.UpdateConfig,

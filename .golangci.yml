@@ -1,7 +1,7 @@
 run:
   deadline: 10m
   skip-files: [ ]
-  skip-dirs:
+  skip-dirs: [ ]
 
 linters-settings:
   govet:
@@ -49,10 +49,6 @@ linters-settings:
     replace-allow-list:
       - github.com/abbot/go-http-auth
 
-  importas:
-    no-unaliased: true
-    alias:
-
 linters:
   enable-all: true
   disable:
@@ -82,6 +78,7 @@ linters:
     - varnamelen
     - nilnil
     - ireturn
+    - errchkjson
 
 issues:
   exclude-use-default: false
@@ -99,6 +96,7 @@ issues:
         - noctx
         - gochecknoinits
         - gochecknoglobals
+        - maintidx
     - path: pkg/version/version.go
       linters:
         - gochecknoglobals
