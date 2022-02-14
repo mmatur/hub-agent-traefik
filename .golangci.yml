@@ -107,6 +107,6 @@ issues:
     # No need for cryptographically secured number generation here.
     - path: pkg/traefik/client.go
       text: 'G404: Use of weak random number generator \(math/rand instead of crypto/rand\)'
-    - path: cmd/agent/main.go
+    - path: cmd/agent/run.go
       linters:
         - funlen
