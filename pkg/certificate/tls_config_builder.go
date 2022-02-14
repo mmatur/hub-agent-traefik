@@ -77,10 +77,15 @@ func (b *TLSConfigBuilder) renewExpiringCertificates() {
 			continue
 		}
 
-		// Otherwise, renew it.
+		// Check if the certificate was renewed.
 		newCert, err := b.certificates.Obtain(strings.Split(domains, ","))
 		if err != nil {
 			log.Error().Err(err).Str("domains", domains).Msg("Unable to renew certificate for domains")
+			continue
+		}
+
+		// Certificate was not renewed yet.
+		if newCert.NotAfter.Equal(cert.NotAfter) {
 			continue
 		}
 
