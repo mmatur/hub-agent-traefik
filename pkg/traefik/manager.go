@@ -28,8 +28,11 @@ type Manager struct {
 	dynCfgMu sync.RWMutex
 	dynCfg   *dynamic.Configuration
 
-	// lastTraefikCfg is the last configuration we pulled from Traefik.
-	lastTraefikCfg *dynamic.Configuration
+	// lastPushedTraefikCfg is the last configuration we pushed to Traefik.
+	lastPushedTraefikCfg *dynamic.Configuration
+
+	// lastPulledTraefikCfg is the last configuration we pulled from Traefik.
+	lastPulledTraefikCfg *dynamic.Configuration
 
 	pluginNameMu sync.RWMutex
 	pluginName   string
@@ -72,11 +75,15 @@ func (m *Manager) Run(ctx context.Context) {
 	for {
 		select {
 		case <-m.refresh:
-			pushCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			m.dynCfgMu.RLock()
+			if reflect.DeepEqual(m.lastPushedTraefikCfg, m.dynCfg) {
+				m.dynCfgMu.RUnlock()
+				continue
+			}
 
+			pushCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			unixNano := time.Now().UnixNano()
 
-			m.dynCfgMu.RLock()
 			if err := m.traefik.PushDynamic(pushCtx, unixNano, m.dynCfg); err != nil {
 				m.dynCfgMu.RUnlock()
 				log.Error().Err(err).Msg("Unable to push Traefik dynamic configuration")
@@ -84,6 +91,7 @@ func (m *Manager) Run(ctx context.Context) {
 				atomic.StoreInt64(&m.lastRefreshUnixNano, unixNano)
 				continue
 			}
+			m.lastPushedTraefikCfg = m.dynCfg
 
 			cancel()
 
@@ -156,7 +164,7 @@ func (m *Manager) runTraefikDynamicSync(ctx context.Context) {
 				continue
 			}
 
-			if reflect.DeepEqual(cfg, m.lastTraefikCfg) {
+			if reflect.DeepEqual(cfg, m.lastPulledTraefikCfg) {
 				continue
 			}
 
@@ -178,7 +186,7 @@ func (m *Manager) runTraefikDynamicSync(ctx context.Context) {
 				continue
 			}
 
-			m.lastTraefikCfg = cfg
+			m.lastPulledTraefikCfg = cfg
 
 		case <-ctx.Done():
 			return
