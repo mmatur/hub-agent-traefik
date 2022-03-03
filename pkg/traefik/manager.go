@@ -3,7 +3,6 @@ package traefik
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -15,11 +14,14 @@ import (
 	"github.com/traefik/neo-agent/pkg/certificate"
 )
 
+// ProviderName is the name of the Traefik Hub provider.
+const ProviderName = "hub"
+
 // Traefik allows pushing dynamic configurations to a Traefik instance.
 type Traefik interface {
 	GetDynamic(ctx context.Context) (*dynamic.Configuration, error)
 	PushDynamic(ctx context.Context, unixNano int64, cfg *dynamic.Configuration) error
-	GetPluginState(ctx context.Context) (PluginState, error)
+	GetProviderState(ctx context.Context) (ProviderState, error)
 }
 
 // Manager manages Traefik dynamic configurations.
@@ -31,8 +33,6 @@ type Manager struct {
 	// lastTraefikCfg is the last configuration we pulled from Traefik.
 	lastTraefikCfg *dynamic.Configuration
 
-	pluginNameMu sync.RWMutex
-	pluginName   string
 	// Accessed atomically.
 	lastRefreshUnixNano int64
 
@@ -50,14 +50,8 @@ type UpdateFunc func(cfg *dynamic.Configuration) error
 
 // NewManager returns a new Manager.
 func NewManager(ctx context.Context, traefik Traefik) (*Manager, error) {
-	ps, err := traefik.GetPluginState(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("get plugin state: %w", err)
-	}
-
 	return &Manager{
 		dynCfg:       emptyDynamicConfiguration(),
-		pluginName:   ps.PluginName,
 		refresh:      make(chan struct{}),
 		syncInterval: 15 * time.Second,
 		traefik:      traefik,
@@ -66,7 +60,7 @@ func NewManager(ctx context.Context, traefik Traefik) (*Manager, error) {
 
 // Run runs the Manager.
 func (m *Manager) Run(ctx context.Context) {
-	go m.runPluginStateSync(ctx)
+	go m.runProviderStateSync(ctx)
 	go m.runTraefikDynamicSync(ctx)
 
 	for {
@@ -114,22 +108,18 @@ func (m *Manager) GetDynamic(ctx context.Context) (*dynamic.Configuration, error
 	return m.traefik.GetDynamic(ctx)
 }
 
-func (m *Manager) runPluginStateSync(ctx context.Context) {
+func (m *Manager) runProviderStateSync(ctx context.Context) {
 	t := time.NewTicker(m.syncInterval)
 	defer t.Stop()
 
 	for {
 		select {
 		case <-t.C:
-			ps, err := m.traefik.GetPluginState(ctx)
+			ps, err := m.traefik.GetProviderState(ctx)
 			if err != nil {
-				log.Error().Err(err).Msg("Unable to get last Hub plugin state")
+				log.Error().Err(err).Msg("Unable to get last Hub provider state")
 				continue
 			}
-
-			m.pluginNameMu.Lock()
-			m.pluginName = ps.PluginName
-			m.pluginNameMu.Unlock()
 
 			curr := atomic.LoadInt64(&m.lastRefreshUnixNano)
 			if curr != ps.LastConfigUnixNano {
@@ -196,14 +186,6 @@ func filterErrMustRetry(errs []error) []error {
 	}
 
 	return filtered
-}
-
-// PluginName returns the current Hub plugin name.
-func (m *Manager) PluginName() string {
-	m.pluginNameMu.RLock()
-	defer m.pluginNameMu.RUnlock()
-
-	return m.pluginName
 }
 
 // SetMiddlewaresConfig sets middlewares to be pushed to Traefik.

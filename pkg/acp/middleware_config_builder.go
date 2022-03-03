@@ -13,7 +13,6 @@ type TraefikManager interface {
 	SetMiddlewaresConfig(mdlwrs map[string]*dynamic.Middleware)
 	GetDynamic(ctx context.Context) (*dynamic.Configuration, error)
 	SetRoutersConfig(routers map[string]*dynamic.Router)
-	PluginName() string
 }
 
 // MiddlewareConfigBuilder builds Traefik middlewares given ACP configurations.

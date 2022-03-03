@@ -122,7 +122,7 @@ func (c *Client) PushDynamic(ctx context.Context, unixNano int64, cfg *dynamic.C
 	return nil
 }
 
-// GetAgentReachableIP returns an IP address the Hub plugin can reach the Agent from.
+// GetAgentReachableIP returns an IP address the Hub provider can reach the Agent from.
 func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
 	// First, start an ephemeral HTTP server that Traefik will try to call to make sure the Agent is reachable.
 	listener, err := net.Listen("tcp", "0.0.0.0:0")
@@ -195,37 +195,36 @@ func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
 	return ip, nil
 }
 
-// PluginState is the state of a Hub plugin.
-type PluginState struct {
-	PluginName         string `json:"pluginName"`
-	LastConfigUnixNano int64  `json:"lastConfigUnixNano"`
+// ProviderState is the state of a Hub provider.
+type ProviderState struct {
+	LastConfigUnixNano int64 `json:"lastConfigUnixNano"`
 }
 
-// GetPluginState returns the current PluginState.
-func (c *Client) GetPluginState(ctx context.Context) (PluginState, error) {
+// GetProviderState returns the current ProviderState.
+func (c *Client) GetProviderState(ctx context.Context) (ProviderState, error) {
 	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "state"))
 	if err != nil {
-		return PluginState{}, err
+		return ProviderState{}, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), http.NoBody)
 	if err != nil {
-		return PluginState{}, fmt.Errorf("build request for %q: %w", endpoint.String(), err)
+		return ProviderState{}, fmt.Errorf("build request for %q: %w", endpoint.String(), err)
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return PluginState{}, fmt.Errorf("request %q: %w", endpoint.String(), err)
+		return ProviderState{}, fmt.Errorf("request %q: %w", endpoint.String(), err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return PluginState{}, fmt.Errorf("expected status code %d; got %d", http.StatusOK, resp.StatusCode)
+		return ProviderState{}, fmt.Errorf("expected status code %d; got %d", http.StatusOK, resp.StatusCode)
 	}
 
-	var ps PluginState
+	var ps ProviderState
 	if err = json.NewDecoder(resp.Body).Decode(&ps); err != nil {
-		return PluginState{}, fmt.Errorf("deserialize plugin state: %w", err)
+		return ProviderState{}, fmt.Errorf("deserialize provider state: %w", err)
 	}
 
 	return ps, nil

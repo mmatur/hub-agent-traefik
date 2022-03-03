@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/traefik/genconf/dynamic"
+	"github.com/traefik/neo-agent/pkg/traefik"
 )
 
 // RouterUpdater updates routers to applies quota & ACPs.
@@ -25,9 +26,9 @@ type RouterUpdater struct {
 }
 
 // NewRouterUpdater returns a new routerUpdater instance.
-func NewRouterUpdater(traefik TraefikManager, maxSecuredRoute int) *RouterUpdater {
+func NewRouterUpdater(manager TraefikManager, maxSecuredRoute int) *RouterUpdater {
 	return &RouterUpdater{
-		traefik:         traefik,
+		traefik:         manager,
 		maxSecuredRoute: maxSecuredRoute,
 	}
 }
@@ -79,11 +80,10 @@ func (u *RouterUpdater) refresh() {
 		return
 	}
 
-	pluginName := u.traefik.PluginName()
 	securedRoutes := map[string]*dynamic.Router{}
 	var rtNames []string
 	for rtName, rt := range u.lastDynCfg.HTTP.Routers {
-		if !haveACP(rt.Middlewares, u.acps, pluginName) {
+		if !haveACP(rt.Middlewares, u.acps) {
 			continue
 		}
 
@@ -143,7 +143,7 @@ func (u *RouterUpdater) buildSecuredRouters(maxSecuredRoute int) map[string]*dyn
 	for rtName, rt := range u.lastDynCfg.HTTP.Routers {
 		parts := strings.Split(rtName, "@")
 
-		if parts[1] == u.traefik.PluginName() {
+		if parts[1] == traefik.ProviderName {
 			continue
 		}
 
@@ -196,10 +196,10 @@ func cloneRouter(rtName string, rt *dynamic.Router) (string, *dynamic.Router) {
 	}
 }
 
-func haveACP(middlewares, acps []string, pluginName string) bool {
+func haveACP(middlewares, acps []string) bool {
 	for _, middleware := range middlewares {
 		for _, acp := range acps {
-			if middleware == acp+"@"+pluginName {
+			if middleware == acp+"@"+traefik.ProviderName {
 				return true
 			}
 		}

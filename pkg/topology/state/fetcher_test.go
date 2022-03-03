@@ -44,8 +44,8 @@ func TestFetcher_FetchState(t *testing.T) {
 					},
 				},
 				AccessControlPolicies: map[string]*AccessControlPolicy{
-					"my-acps@plugin-hub-provider": {
-						Name:      "my-acps@plugin-hub-provider",
+					"my-acps@hub": {
+						Name:      "my-acps@hub",
 						ClusterID: clusterID,
 						Method:    "jwt",
 						JWT: &AccessControlPolicyJWT{
@@ -61,7 +61,7 @@ func TestFetcher_FetchState(t *testing.T) {
 				Routers: map[string]*dynamic.Router{
 					"whoami@docker": {
 						EntryPoints: []string{"entrypoint"},
-						Middlewares: []string{"my-acps@plugin-hub-provider"},
+						Middlewares: []string{"my-acps@hub"},
 						Service:     "whoami-whoami",
 						Rule:        "Host(`whoami.localhost`)",
 						TLS: &dynamic.RouterTLSConfig{
@@ -106,7 +106,7 @@ func TestFetcher_FetchState(t *testing.T) {
 							ClusterID:      clusterID,
 							ControllerType: "traefik",
 							Annotations: map[string]string{
-								"hub.traefik.io/access-control-policy": "my-acps@plugin-hub-provider",
+								"hub.traefik.io/access-control-policy": "my-acps@hub",
 							},
 						},
 						TLS: &IngressRouteTLS{
@@ -166,8 +166,8 @@ func TestFetcher_FetchState(t *testing.T) {
 					},
 				},
 				AccessControlPolicies: map[string]*AccessControlPolicy{
-					"my-acps@plugin-hub-provider": {
-						Name:      "my-acps@plugin-hub-provider",
+					"my-acps@hub": {
+						Name:      "my-acps@hub",
 						ClusterID: clusterID,
 						Method:    "jwt",
 						JWT: &AccessControlPolicyJWT{
@@ -192,10 +192,8 @@ func TestFetcher_FetchState(t *testing.T) {
 			mux.HandleFunc("/state", func(rw http.ResponseWriter, req *http.Request) {
 				rw.Header().Set("Content-Type", "application/json")
 				st := struct {
-					PluginName         string `json:"pluginName"`
-					LastConfigUnixNano int64  `json:"lastConfigUnixNano"`
+					LastConfigUnixNano int64 `json:"lastConfigUnixNano"`
 				}{
-					PluginName:         "plugin-hub-provider",
 					LastConfigUnixNano: 0,
 				}
 
@@ -245,8 +243,8 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 				},
 			},
 			wantACPCluster: map[string]*AccessControlPolicy{
-				"my-acps@plugin-hub-provider": {
-					Name:      "my-acps@plugin-hub-provider",
+				"my-acps@hub": {
+					Name:      "my-acps@hub",
 					ClusterID: "clusterID",
 					Method:    "jwt",
 					JWT: &AccessControlPolicyJWT{
@@ -273,8 +271,8 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 				},
 			},
 			wantACPCluster: map[string]*AccessControlPolicy{
-				"my-acps@plugin-hub-provider": {
-					Name:      "my-acps@plugin-hub-provider",
+				"my-acps@hub": {
+					Name:      "my-acps@hub",
 					ClusterID: "clusterID",
 					Method:    "jwt",
 					JWT: &AccessControlPolicyJWT{
@@ -301,8 +299,8 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 				},
 			},
 			wantACPCluster: map[string]*AccessControlPolicy{
-				"my-acps@plugin-hub-provider": {
-					Name:      "my-acps@plugin-hub-provider",
+				"my-acps@hub": {
+					Name:      "my-acps@hub",
 					ClusterID: "clusterID",
 					Method:    "jwt",
 					JWT: &AccessControlPolicyJWT{
@@ -323,8 +321,8 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 				},
 			},
 			wantACPCluster: map[string]*AccessControlPolicy{
-				"my-acps@plugin-hub-provider": {
-					Name:      "my-acps@plugin-hub-provider",
+				"my-acps@hub": {
+					Name:      "my-acps@hub",
 					ClusterID: "clusterID",
 					Method:    "basicauth",
 					BasicAuth: &AccessControlPolicyBasicAuth{
@@ -347,8 +345,8 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 				},
 			},
 			wantACPCluster: map[string]*AccessControlPolicy{
-				"my-acps@plugin-hub-provider": {
-					Name:      "my-acps@plugin-hub-provider",
+				"my-acps@hub": {
+					Name:      "my-acps@hub",
 					ClusterID: "clusterID",
 					Method:    "digestauth",
 					DigestAuth: &AccessControlPolicyDigestAuth{
@@ -375,10 +373,8 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 			mux.HandleFunc("/state", func(rw http.ResponseWriter, req *http.Request) {
 				rw.Header().Set("Content-Type", "application/json")
 				st := struct {
-					PluginName         string `json:"pluginName"`
-					LastConfigUnixNano int64  `json:"lastConfigUnixNano"`
+					LastConfigUnixNano int64 `json:"lastConfigUnixNano"`
 				}{
-					PluginName:         "plugin-hub-provider",
 					LastConfigUnixNano: 0,
 				}
 

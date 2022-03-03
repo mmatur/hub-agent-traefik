@@ -49,13 +49,11 @@ func (f *Fetcher) FetchState(ctx context.Context) (*Cluster, error) {
 		},
 	}
 
-	pluginName := f.traefikManager.PluginName()
-
 	f.acpsMu.RLock()
 	cluster.AccessControlPolicies = make(map[string]*AccessControlPolicy)
 	for name, policy := range f.acps {
 		policy := policy
-		cluster.AccessControlPolicies[name+"@"+pluginName] = f.buildACP(name+"@"+pluginName, &policy)
+		cluster.AccessControlPolicies[name+"@"+traefik.ProviderName] = f.buildACP(name+"@"+traefik.ProviderName, &policy)
 	}
 	f.acpsMu.RUnlock()
 

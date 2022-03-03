@@ -45,7 +45,7 @@ func (m *Manager) SetConfig(sendInterval time.Duration, sendTables []string) {
 }
 
 // Run runs the metrics manager. This is a blocking method.
-func (m *Manager) Run(ctx context.Context, hubPluginEntrypoint string) error {
+func (m *Manager) Run(ctx context.Context, hubProviderEntrypoint string) error {
 	prevData, err := m.client.GetPreviousData(ctx, true)
 	if err != nil {
 		return err
@@ -57,9 +57,9 @@ func (m *Manager) Run(ctx context.Context, hubPluginEntrypoint string) error {
 		}
 	}
 
-	u, err := url.ParseRequestURI(hubPluginEntrypoint)
+	u, err := url.ParseRequestURI(hubProviderEntrypoint)
 	if err != nil {
-		return fmt.Errorf("unable to parse hub plugin entrypoint: %w", err)
+		return fmt.Errorf("unable to parse hub provider entrypoint: %w", err)
 	}
 	target, err := u.Parse(path.Join(u.Path, "metrics"))
 	if err != nil {

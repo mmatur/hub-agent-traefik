@@ -24,7 +24,7 @@ func TestRouterUpdater_updateDynamicAppliesQuota(t *testing.T) {
 				},
 				"rtSecured@docker": {
 					EntryPoints: []string{"entrypoint"},
-					Middlewares: []string{"acp@plugin-name"},
+					Middlewares: []string{"acp@hub"},
 					Service:     "service",
 					Rule:        "Host(`whoami`)",
 					TLS: &dynamic.RouterTLSConfig{
@@ -33,7 +33,7 @@ func TestRouterUpdater_updateDynamicAppliesQuota(t *testing.T) {
 				},
 				"zrtSecured@docker": {
 					EntryPoints: []string{"entrypoint"},
-					Middlewares: []string{"acp2@plugin-name"},
+					Middlewares: []string{"acp2@hub"},
 					Service:     "service@file",
 					Rule:        "Host(`whoami2`)",
 					TLS: &dynamic.RouterTLSConfig{
@@ -42,7 +42,7 @@ func TestRouterUpdater_updateDynamicAppliesQuota(t *testing.T) {
 				},
 				"zrtSecuredBis@docker": {
 					EntryPoints: []string{"entrypoint"},
-					Middlewares: []string{"acp2@plugin-name"},
+					Middlewares: []string{"acp2@hub"},
 					Service:     "service",
 					Rule:        "Host(`whoamiBis`)",
 					TLS: &dynamic.RouterTLSConfig{
@@ -82,9 +82,6 @@ func TestRouterUpdater_updateDynamicAppliesQuota(t *testing.T) {
 			callCountSetRoutersConfig++
 
 			gotRouter = rts
-		},
-		pluginName: func() string {
-			return "plugin-name"
 		},
 	}
 
@@ -157,9 +154,6 @@ func TestRouterUpdater_updateSecuredIngress(t *testing.T) {
 			callCountSetRoutersConfig++
 
 			gotRouter = rts
-		},
-		pluginName: func() string {
-			return "plugin-name"
 		},
 	}
 

@@ -18,7 +18,6 @@ type traefikManagerMock struct {
 	setMiddlewaresConfig func(map[string]*dynamic.Middleware)
 	getDynamic           func() (*dynamic.Configuration, error)
 	setRoutersConfig     func(map[string]*dynamic.Router)
-	pluginName           func() string
 }
 
 func (m traefikManagerMock) SetMiddlewaresConfig(mdlwrs map[string]*dynamic.Middleware) {
@@ -31,10 +30,6 @@ func (m traefikManagerMock) GetDynamic(_ context.Context) (*dynamic.Configuratio
 
 func (m traefikManagerMock) SetRoutersConfig(routers map[string]*dynamic.Router) {
 	m.setRoutersConfig(routers)
-}
-
-func (m traefikManagerMock) PluginName() string {
-	return m.pluginName()
 }
 
 func TestMiddlewareConfigBuilder_UpdateConfig(t *testing.T) {
