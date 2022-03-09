@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 
 	"github.com/ettle/strcase"
@@ -17,6 +18,7 @@ import (
 	"github.com/traefik/neo-agent/pkg/topology/state"
 	topostore "github.com/traefik/neo-agent/pkg/topology/store"
 	"github.com/traefik/neo-agent/pkg/traefik"
+	"github.com/traefik/neo-agent/pkg/tunnel"
 	"github.com/traefik/neo-agent/pkg/version"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
@@ -167,6 +169,21 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 		return err
 	}
 
+	tunnelClient, err := tunnel.NewClient(platformURL, token)
+	if err != nil {
+		return fmt.Errorf("create tunnel client: %w", err)
+	}
+
+	addr, err := url.Parse(traefikAddr)
+	if err != nil {
+		return fmt.Errorf("parse traefik addr: %w", err)
+	}
+	host, _, err := net.SplitHostPort(addr.Host)
+	if err != nil {
+		return fmt.Errorf("split host port for traefik addr: %w", err)
+	}
+	tunnelManager := tunnel.NewManager(tunnelClient, host, token)
+
 	heartbeater := heartbeat.NewHeartbeater(platformClient)
 
 	group, ctx := errgroup.WithContext(cliCtx.Context)
@@ -204,6 +221,11 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	group.Go(func() error {
 		topologyWatcher.Start(ctx)
+		return nil
+	})
+
+	group.Go(func() error {
+		tunnelManager.Run(ctx)
 		return nil
 	})
 
