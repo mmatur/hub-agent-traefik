@@ -45,21 +45,21 @@ func newRunCmd() runCmd {
 			},
 			&cli.StringFlag{
 				Name:     flagTraefikAddr,
-				Usage:    "Address on which the Agent can reach Traefik",
+				Usage:    "Address to advertise for Traefik to reach the Agent authentication server. Required when the automatic discovery fails",
 				EnvVars:  []string{strcase.ToSNAKE(flagTraefikAddr)},
 				Required: true,
 			},
 			&cli.StringFlag{
-				Name:     flagToken,
+				Name:     flagHubToken,
 				Usage:    "The token to use for Hub platform API calls",
-				EnvVars:  []string{strcase.ToSNAKE(flagToken)},
+				EnvVars:  []string{strcase.ToSNAKE(flagHubToken)},
 				Required: true,
 			},
 			&cli.StringFlag{
-				Name:    flagPlatformURL,
+				Name:    flagHubURL,
 				Usage:   "The URL where to reach the Hub platform API",
 				Value:   "https://platform.hub.traefik.io/agent",
-				EnvVars: []string{strcase.ToSNAKE(flagPlatformURL)},
+				EnvVars: []string{strcase.ToSNAKE(flagHubURL)},
 				Hidden:  true,
 			},
 			&cli.StringFlag{
@@ -69,9 +69,9 @@ func newRunCmd() runCmd {
 				Value:   "0.0.0.0:80",
 			},
 			&cli.StringFlag{
-				Name:    flagAuthServerReachableAddr,
+				Name:    flagAuthServerAdvertiseAddr,
 				Usage:   "Address on which Traefik can reach the Agent auth server. Required when the automatic IP discovery fails",
-				EnvVars: []string{strcase.ToSNAKE(flagAuthServerReachableAddr)},
+				EnvVars: []string{strcase.ToSNAKE(flagAuthServerAdvertiseAddr)},
 			},
 			&cli.StringFlag{
 				Name:    flagAuthServerACPDir,
@@ -97,7 +97,7 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	version.Log()
 
-	platformURL, token := cliCtx.String(flagPlatformURL), cliCtx.String("token")
+	platformURL, token := cliCtx.String(flagHubURL), cliCtx.String(flagHubToken)
 	platformClient, err := platform.NewClient(platformURL, token)
 	if err != nil {
 		return fmt.Errorf("new platform client: %w", err)
@@ -114,12 +114,12 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 		return fmt.Errorf("create Traefik client: %w", err)
 	}
 
-	listenAddr, reachableAddr := cliCtx.String(flagAuthServerListenAddr), cliCtx.String(flagAuthServerReachableAddr)
+	listenAddr, reachableAddr := cliCtx.String(flagAuthServerListenAddr), cliCtx.String(flagAuthServerAdvertiseAddr)
 	if reachableAddr == "" {
 		log.Debug().Msg("Using auto-discovery to find Agent reachable address")
 		reachableAddr, err = getAgentReachableAddress(cliCtx.Context, traefikClient, listenAddr)
 		if err != nil {
-			return fmt.Errorf("get agent reachable address: %w. Consider using the `%s` flag", err, flagAuthServerReachableAddr)
+			return fmt.Errorf("get agent reachable address: %w. Consider using the `%s` flag", err, flagAuthServerAdvertiseAddr)
 		}
 	}
 

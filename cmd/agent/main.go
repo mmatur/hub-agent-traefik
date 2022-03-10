@@ -14,14 +14,14 @@ import (
 )
 
 const (
-	flagLogLevel                = "log-level"
-	flagLogFormat               = "log-format"
-	flagTraefikAddr             = "traefik-addr"
-	flagToken                   = "token"
-	flagPlatformURL             = "platform-url"
-	flagAuthServerListenAddr    = "auth-server-listen-addr"
-	flagAuthServerReachableAddr = "auth-server-reachable-addr"
-	flagAuthServerACPDir        = "auth-server-acp-dir"
+	flagAuthServerListenAddr    = "auth-server.listen-addr"
+	flagAuthServerAdvertiseAddr = "auth-server.advertise-addr"
+	flagAuthServerACPDir        = "auth-server.acp-dir"
+	flagHubToken                = "hub.token"
+	flagHubURL                  = "hub.url"
+	flagLogLevel                = "log.level"
+	flagLogFormat               = "log.format"
+	flagTraefikAddr             = "traefik.addr"
 )
 
 func main() {
