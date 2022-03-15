@@ -96,7 +96,12 @@ func readACPDir(dir string) (map[string]Config, error) {
 			return err
 		}
 
-		if d.IsDir() {
+		isDir, err := isDir(path, d)
+		if err != nil {
+			return fmt.Errorf("%q is dir: %w", path, err)
+		}
+
+		if isDir {
 			return nil
 		}
 
@@ -123,6 +128,33 @@ func readACPDir(dir string) (map[string]Config, error) {
 	}
 
 	return cfgs, nil
+}
+
+func isDir(path string, d fs.DirEntry) (bool, error) {
+	if d.IsDir() {
+		return true, nil
+	}
+
+	fileInfo, err := d.Info()
+	if err != nil {
+		return false, fmt.Errorf("get info: %w", err)
+	}
+
+	if fileInfo.Mode()&os.ModeSymlink != os.ModeSymlink {
+		return false, nil
+	}
+
+	target, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return false, fmt.Errorf("eval symlinks: %w", err)
+	}
+
+	targetInfo, err := os.Stat(target)
+	if err != nil {
+		return false, fmt.Errorf("stat symlink target %q: %w", target, err)
+	}
+
+	return targetInfo.IsDir(), nil
 }
 
 func buildRoutes(cfgs map[string]Config) (http.Handler, error) {
