@@ -12,8 +12,8 @@ import (
 	"strings"
 	"sync"
 
-	jwt "github.com/dgrijalva/jwt-go"
-	jwtreq "github.com/dgrijalva/jwt-go/request"
+	"github.com/golang-jwt/jwt"
+	jwtreq "github.com/golang-jwt/jwt/request"
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/neo-agent/pkg/acp/jwt/expr"
 )

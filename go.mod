@@ -4,8 +4,8 @@ go 1.17
 
 require (
 	github.com/abbot/go-http-auth v0.4.0
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/ettle/strcase v0.1.1
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/gorilla/websocket v1.4.2
 	github.com/hamba/avro v1.6.3
 	github.com/hashicorp/go-retryablehttp v0.7.0
