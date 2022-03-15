@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/traefik/neo-agent/pkg/metrics"
+	"github.com/traefik/hub-agent-traefik/pkg/metrics"
 )
 
 // DataPointsFinder is capable of finding data points for given criteria.

@@ -15,7 +15,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	jwtreq "github.com/golang-jwt/jwt/request"
 	"github.com/rs/zerolog/log"
-	"github.com/traefik/neo-agent/pkg/acp/jwt/expr"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/jwt/expr"
 )
 
 // Config configures a JWT ACP handler.

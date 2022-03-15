@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/traefik/neo-agent/pkg/version"
+	"github.com/traefik/hub-agent-traefik/pkg/version"
 	"github.com/urfave/cli/v2"
 )
 
@@ -16,7 +16,7 @@ func newVersionCmd() versionCmd {
 func (v versionCmd) build() *cli.Command {
 	return &cli.Command{
 		Name:   "version",
-		Usage:  "Shows the Neo Agent version information",
+		Usage:  "Shows the Traefik Hub agent for Traefik version information",
 		Action: v.run,
 	}
 }

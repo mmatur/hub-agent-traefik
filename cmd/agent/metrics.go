@@ -5,9 +5,9 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/rs/zerolog/log"
-	"github.com/traefik/neo-agent/pkg/logger"
-	"github.com/traefik/neo-agent/pkg/metrics"
-	"github.com/traefik/neo-agent/pkg/platform"
+	"github.com/traefik/hub-agent-traefik/pkg/logger"
+	"github.com/traefik/hub-agent-traefik/pkg/metrics"
+	"github.com/traefik/hub-agent-traefik/pkg/platform"
 )
 
 func newMetrics(token, platformURL string, cfg platform.MetricsConfig, cfgWatcher *platform.ConfigWatcher) (*metrics.Manager, *metrics.Store, error) {

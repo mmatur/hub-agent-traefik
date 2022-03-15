@@ -5,13 +5,13 @@ RUN apk --no-cache --no-progress add ca-certificates tzdata git \
     && update-ca-certificates \
     && rm -rf /var/cache/apk/*
 
-COPY neo-agent .
+COPY hub-agent-traefik .
 
-ENTRYPOINT ["/neo-agent"]
+ENTRYPOINT ["/hub-agent-traefik"]
 EXPOSE 80
 
 # Metadata
-LABEL org.opencontainers.image.source="https://github.com/traefik/neo-agent" \
+LABEL org.opencontainers.image.source="https://github.com/traefik/hub-agent-traefik" \
     org.opencontainers.image.vendor="Traefik Labs" \
     org.opencontainers.image.url="https://traefik.io" \
     org.opencontainers.image.title="Traefik Hub" \

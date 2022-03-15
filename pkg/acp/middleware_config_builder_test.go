@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/traefik/genconf/dynamic"
-	"github.com/traefik/neo-agent/pkg/acp/basicauth"
-	"github.com/traefik/neo-agent/pkg/acp/digestauth"
-	"github.com/traefik/neo-agent/pkg/acp/jwt"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/basicauth"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/digestauth"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/jwt"
 )
 
 type traefikManagerMock struct {

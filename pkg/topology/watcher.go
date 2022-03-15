@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/traefik/neo-agent/pkg/topology/state"
-	"github.com/traefik/neo-agent/pkg/topology/store"
+	"github.com/traefik/hub-agent-traefik/pkg/topology/state"
+	"github.com/traefik/hub-agent-traefik/pkg/topology/store"
 )
 
 // Watcher is a process from the Hub agent that watches the topology for changes and

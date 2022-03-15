@@ -6,9 +6,9 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/rs/zerolog/log"
-	"github.com/traefik/neo-agent/pkg/alerting"
-	"github.com/traefik/neo-agent/pkg/logger"
-	"github.com/traefik/neo-agent/pkg/metrics"
+	"github.com/traefik/hub-agent-traefik/pkg/alerting"
+	"github.com/traefik/hub-agent-traefik/pkg/logger"
+	"github.com/traefik/hub-agent-traefik/pkg/metrics"
 )
 
 const (

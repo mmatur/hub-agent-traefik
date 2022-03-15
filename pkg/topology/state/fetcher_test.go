@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/traefik/genconf/dynamic"
 	"github.com/traefik/genconf/dynamic/types"
-	"github.com/traefik/neo-agent/pkg/acp"
-	"github.com/traefik/neo-agent/pkg/acp/basicauth"
-	"github.com/traefik/neo-agent/pkg/acp/digestauth"
-	"github.com/traefik/neo-agent/pkg/acp/jwt"
-	"github.com/traefik/neo-agent/pkg/traefik"
+	"github.com/traefik/hub-agent-traefik/pkg/acp"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/basicauth"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/digestauth"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/jwt"
+	"github.com/traefik/hub-agent-traefik/pkg/traefik"
 )
 
 func TestFetcher_FetchState(t *testing.T) {

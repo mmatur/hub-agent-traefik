@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/genconf/dynamic"
 	"github.com/traefik/genconf/dynamic/tls"
-	"github.com/traefik/neo-agent/pkg/certificate"
+	"github.com/traefik/hub-agent-traefik/pkg/certificate"
 )
 
 // ProviderName is the name of the Traefik Hub provider.

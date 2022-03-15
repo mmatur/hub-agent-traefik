@@ -34,9 +34,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: ${{ runner.os }}-neo-agent-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-hub-agent-traefik-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-neo-agent-go-
+            ${{ runner.os }}-hub-agent-traefik-go-
 
       - name: Check and get dependencies
         run: |
@@ -59,7 +59,7 @@ jobs:
           install: true
 
       - name: Login to GHCR
-        if: github.repository == 'traefik/neo-agent'
+        if: github.repository == 'traefik/hub-agent-traefik'
         uses: docker/login-action@v1
         with:
           registry: ghcr.io
@@ -67,14 +67,14 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build multi arch image
-        if: github.repository == 'traefik/neo-agent' && github.ref == 'refs/heads/deploy'
+        if: github.repository == 'traefik/hub-agent-traefik' && github.ref == 'refs/heads/deploy'
         env:
           DOCKER_BUILDX_ARGS: --push
         run: |
           make multi-arch-image
 
       - name: Build multi arch experimental image
-        if: github.repository == 'traefik/neo-agent' && github.ref == 'refs/heads/master'
+        if: github.repository == 'traefik/hub-agent-traefik' && github.ref == 'refs/heads/master'
         env:
           DOCKER_BUILDX_ARGS: --push
           DOCKER_IMAGE_TAG: experimental

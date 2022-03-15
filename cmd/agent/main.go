@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
-	"github.com/traefik/neo-agent/pkg/version"
+	"github.com/traefik/hub-agent-traefik/pkg/version"
 	"github.com/urfave/cli/v2"
 )
 
@@ -34,8 +34,8 @@ func main() {
 
 func run() error {
 	app := &cli.App{
-		Name:  "Neo agent CLI",
-		Usage: "Manages a Traefik Neo agent installation",
+		Name:  "Traefik hub Agent for Traefik agent CLI",
+		Usage: "Manages a Traefik hub agent installation",
 		Commands: []*cli.Command{
 			newRunCmd().build(),
 			newVersionCmd().build(),

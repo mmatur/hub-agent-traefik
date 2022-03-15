@@ -32,9 +32,9 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: ${{ runner.os }}-neo-agent-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-hub-agent-traefik-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-neo-agent-go-
+            ${{ runner.os }}-hub-agent-traefik-go-
 
       - name: Check and get dependencies
         run: |

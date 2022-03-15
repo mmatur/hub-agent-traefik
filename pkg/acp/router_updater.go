@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/traefik/genconf/dynamic"
-	"github.com/traefik/neo-agent/pkg/traefik"
+	"github.com/traefik/hub-agent-traefik/pkg/traefik"
 )
 
 // RouterUpdater updates routers to applies quota & ACPs.

@@ -9,8 +9,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/genconf/dynamic"
 	"github.com/traefik/genconf/dynamic/types"
-	"github.com/traefik/neo-agent/pkg/acp"
-	"github.com/traefik/neo-agent/pkg/traefik"
+	"github.com/traefik/hub-agent-traefik/pkg/acp"
+	"github.com/traefik/hub-agent-traefik/pkg/traefik"
 )
 
 // Fetcher fetches Traefik dynamic configuration and converts them into a filtered and simplified state.

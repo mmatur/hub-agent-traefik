@@ -1,7 +1,7 @@
 .PHONY: clean lint test build \
 		publish publish-latest image image-dev multi-arch-image
 
-BIN_NAME := neo-agent
+BIN_NAME := hub-agent-traefik
 MAIN_DIRECTORY := ./cmd/agent
 
 TAG_NAME := $(shell git tag -l --contains HEAD)
@@ -27,7 +27,7 @@ test: clean
 
 build: clean
 	@echo Version: $(VERSION) $(BUILD_DATE)
-	CGO_ENABLED=0 go build -trimpath -ldflags '-X "github.com/traefik/neo-agent/pkg/version.date=${BUILD_DATE}" -X "github.com/traefik/neo-agent/pkg/version.version=${VERSION}" -X "github.com/traefik/neo-agent/pkg/version.commit=${SHA}"' -o ${OUTPUT} ${MAIN_DIRECTORY}
+	CGO_ENABLED=0 go build -trimpath -ldflags '-X "github.com/traefik/hub-agent-traefik/pkg/version.date=${BUILD_DATE}" -X "github.com/traefik/hub-agent-traefik/pkg/version.version=${VERSION}" -X "github.com/traefik/hub-agent-traefik/pkg/version.commit=${SHA}"' -o ${OUTPUT} ${MAIN_DIRECTORY}
 
 image: export GOOS := linux
 image: export GOARCH := amd64

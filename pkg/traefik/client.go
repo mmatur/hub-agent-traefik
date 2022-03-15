@@ -17,7 +17,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/genconf/dynamic"
-	"github.com/traefik/neo-agent/pkg/logger"
+	"github.com/traefik/hub-agent-traefik/pkg/logger"
 )
 
 // Client allows interacting with a Traefik instance.

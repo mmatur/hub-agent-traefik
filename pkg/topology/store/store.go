@@ -13,7 +13,7 @@ import (
 	"github.com/ldez/go-git-cmd-wrapper/v2/remote"
 	"github.com/ldez/go-git-cmd-wrapper/v2/types"
 	"github.com/rs/zerolog/log"
-	"github.com/traefik/neo-agent/pkg/platform"
+	"github.com/traefik/hub-agent-traefik/pkg/platform"
 )
 
 // Config represents the topology store config.

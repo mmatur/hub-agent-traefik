@@ -1,5 +1,5 @@
 .idea/
 dist/
-neo-agent
+hub-agent-traefik
 acps/
 certs/
