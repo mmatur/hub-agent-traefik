@@ -34,8 +34,8 @@ func main() {
 
 func run() error {
 	app := &cli.App{
-		Name:  "Traefik hub Agent for Traefik agent CLI",
-		Usage: "Manages a Traefik hub agent installation",
+		Name:  "Traefik Hub Agent for Traefik",
+		Usage: "Manages a Traefik Hub agent installation",
 		Commands: []*cli.Command{
 			newRunCmd().build(),
 			newVersionCmd().build(),
