@@ -55,8 +55,18 @@ func (w *Watcher) Run(ctx context.Context) {
 	for {
 		select {
 		case <-t.C:
+			_, err := os.Stat(w.acpDir)
+			if errors.Is(err, fs.ErrNotExist) {
+				// No available dir to read.
+				continue
+			}
+			if err != nil {
+				log.Error().Err(err).Str("directory", w.acpDir).Msg("Unable to stat directory")
+			}
+
 			acps, err := readACPDir(w.acpDir)
 			if err != nil {
+				// Use warn log level as the user may not use the ACP feature.
 				log.Error().Err(err).Str("directory", w.acpDir).Msg("Unable to read ACP from directory")
 				continue
 			}
