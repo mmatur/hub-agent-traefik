@@ -215,22 +215,32 @@ func (t *tunnel) launch(tunnelID, token, traefikAddr string) error {
 		}
 
 		go func(brokerConn net.Conn) {
-			serviceConn, dialErr := net.Dial("tcp", fmt.Sprintf("%s:%s", traefikAddr, port))
-			if dialErr != nil {
-				log.Error().Err(dialErr).Msg("Unable to connect to Traefik")
+			if err = proxy(brokerConn, fmt.Sprintf("%s:%s", traefikAddr, port)); err != nil {
+				log.Error().Err(err).Msg("Unable to proxy to Traefik")
 			}
-
-			errCh := make(chan error)
-
-			go connCopy(errCh, serviceConn, brokerConn)
-			go connCopy(errCh, brokerConn, serviceConn)
-
-			if cerr := <-errCh; cerr != nil {
-				log.Error().Err(cerr).Msg("Unable to copy conn")
-			}
-			<-errCh
 		}(brokerConn)
 	}
+}
+
+func proxy(sourceConn net.Conn, addr string) error {
+	targetConn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("dial: %w", err)
+	}
+
+	errCh := make(chan error)
+
+	go connCopy(errCh, targetConn, sourceConn)
+	go connCopy(errCh, sourceConn, targetConn)
+
+	err = <-errCh
+	<-errCh
+
+	if err != nil {
+		return fmt.Errorf("copy conn: %w", err)
+	}
+
+	return nil
 }
 
 func connCopy(errCh chan<- error, dst io.WriteCloser, src io.Reader) {
