@@ -77,7 +77,7 @@ func newRunCmd() runCmd {
 				Name:    flagAuthServerACPDir,
 				Usage:   "Directory path containing Access Control Policy configurations",
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerACPDir)},
-				Value:   "/etc/hub-agent/acps/",
+				Value:   "/etc/hub-agent-traefik/acps/",
 			},
 		},
 	}

@@ -1,10 +1,10 @@
-# Hub Agent for Traefik
+# Traefik Hub Agent for Traefik
 
 ## Usage
 
 ```
 NAME:
-   Traefik Hub Agent for Traefik - Manages a Traefik Hub agent installation
+   Traefik Hub agent for Traefik - Manages a Traefik Hub agent installation
 
 USAGE:
    agent [global options] command [command options] [arguments...]
