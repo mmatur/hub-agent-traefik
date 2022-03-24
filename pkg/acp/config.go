@@ -1,6 +1,8 @@
 package acp
 
 import (
+	"errors"
+
 	"github.com/traefik/hub-agent-traefik/pkg/acp/basicauth"
 	"github.com/traefik/hub-agent-traefik/pkg/acp/digestauth"
 	"github.com/traefik/hub-agent-traefik/pkg/acp/jwt"
@@ -13,4 +15,13 @@ type Config struct {
 	DigestAuth *digestauth.Config `yaml:"digestAuth"`
 
 	Ingresses []string `json:"ingresses"`
+}
+
+// Validate validates ACP config.
+func (c Config) Validate() error {
+	if c.JWT == nil && c.BasicAuth == nil && c.DigestAuth == nil {
+		return errors.New("one of jwt, basicAuth, digestAuth authentication method must be set")
+	}
+
+	return nil
 }

@@ -130,6 +130,12 @@ func readACPDir(dir string) (map[string]Config, error) {
 			return fmt.Errorf("deserialize ACP configuration: %w", err)
 		}
 
+		if err := cfg.Validate(); err != nil {
+			log.Error().Err(err).Str("acpName", acpName).Msg("ACP configuration is not valid.")
+
+			return nil
+		}
+
 		cfgs[acpName] = cfg
 
 		return nil
