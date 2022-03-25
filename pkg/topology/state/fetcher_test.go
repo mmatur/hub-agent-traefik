@@ -201,9 +201,10 @@ func TestFetcher_FetchState(t *testing.T) {
 				require.NoError(t, err)
 			})
 
-			srv := httptest.NewServer(mux)
+			srv := httptest.NewUnstartedServer(mux)
+			srv.StartTLS()
 
-			traefikClient, err := traefik.NewClient(srv.URL)
+			traefikClient, err := traefik.NewClient(srv.URL, true, "", "", "")
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -382,9 +383,10 @@ func TestFetcher_FetchState_HandleAccessControlPolicies(t *testing.T) {
 				require.NoError(t, err)
 			})
 
-			srv := httptest.NewServer(mux)
+			srv := httptest.NewUnstartedServer(mux)
+			srv.StartTLS()
 
-			traefikClient, err := traefik.NewClient(srv.URL)
+			traefikClient, err := traefik.NewClient(srv.URL, true, "", "", "")
 			require.NoError(t, err)
 
 			ctx := context.Background()

@@ -3,8 +3,6 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"net/url"
-	"path"
 	"sync"
 	"time"
 
@@ -57,16 +55,7 @@ func (m *Manager) Run(ctx context.Context, hubProviderEntrypoint string) error {
 		}
 	}
 
-	u, err := url.ParseRequestURI(hubProviderEntrypoint)
-	if err != nil {
-		return fmt.Errorf("unable to parse hub provider entrypoint: %w", err)
-	}
-	target, err := u.Parse(path.Join(u.Path, "metrics"))
-	if err != nil {
-		return fmt.Errorf("parse endpoint: %w", err)
-	}
-
-	go m.startScraper(ctx, target.String())
+	go m.startScraper(ctx)
 	go m.runSender(ctx)
 
 	<-ctx.Done()
@@ -135,8 +124,8 @@ func (m *Manager) send(ctx context.Context, tbls []string) error {
 	return nil
 }
 
-func (m *Manager) startScraper(ctx context.Context, target string) {
-	mtrcs, err := m.scraper.Scrape(ctx, target)
+func (m *Manager) startScraper(ctx context.Context) {
+	mtrcs, err := m.scraper.Scrape(ctx)
 	if err != nil {
 		log.Error().Err(err).Msg("Unable to scrape metrics")
 		return
@@ -154,7 +143,7 @@ func (m *Manager) startScraper(ctx context.Context, target string) {
 			return
 
 		case <-tick.C:
-			mtrcs, err = m.scraper.Scrape(ctx, target)
+			mtrcs, err = m.scraper.Scrape(ctx)
 			if err != nil {
 				log.Error().Err(err).Msg("Unable to scrape metrics")
 				return

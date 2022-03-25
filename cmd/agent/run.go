@@ -79,6 +79,30 @@ func newRunCmd() runCmd {
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerACPDir)},
 				Value:   "/etc/hub-agent-traefik/acps/",
 			},
+			&cli.StringFlag{
+				Name:     flagTraefikTLSCA,
+				Usage:    "Path to the certificate authority which signed TLS credentials",
+				EnvVars:  []string{strcase.ToSNAKE(flagTraefikTLSCA)},
+				Required: false,
+			},
+			&cli.StringFlag{
+				Name:     flagTraefikTLSCert,
+				Usage:    "Path to the certificate (must have `agent.traefik` domain name) used to communicate with Traefik Proxy",
+				EnvVars:  []string{strcase.ToSNAKE(flagTraefikTLSCert)},
+				Required: false,
+			},
+			&cli.StringFlag{
+				Name:     flagTraefikTLSKey,
+				Usage:    "Path to the key used to communicate with Traefik Proxy",
+				EnvVars:  []string{strcase.ToSNAKE(flagTraefikTLSKey)},
+				Required: false,
+			},
+			&cli.StringFlag{
+				Name:     flagTraefikTLSInsecure,
+				Usage:    "Activate insecure TLS",
+				EnvVars:  []string{strcase.ToSNAKE(flagTraefikTLSInsecure)},
+				Required: false,
+			},
 		},
 	}
 }
@@ -109,7 +133,12 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 	}
 
 	traefikAddr := cliCtx.String(flagTraefikAddr)
-	traefikClient, err := traefik.NewClient(traefikAddr)
+	traefikTLSCA := cliCtx.String(flagTraefikTLSCA)
+	traefikTLSCert := cliCtx.String(flagTraefikTLSCert)
+	traefikTLSKey := cliCtx.String(flagTraefikTLSKey)
+	traefikTLSInsecure := cliCtx.Bool(flagTraefikTLSInsecure)
+
+	traefikClient, err := traefik.NewClient(traefikAddr, traefikTLSInsecure, traefikTLSCA, traefikTLSCert, traefikTLSKey)
 	if err != nil {
 		return fmt.Errorf("create Traefik client: %w", err)
 	}
@@ -164,7 +193,7 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	topologyWatcher := topology.NewWatcher(fetcher, store)
 	cfgWatcher := platform.NewConfigWatcher(15*time.Minute, platformClient)
-	metricsMgr, metricsStore, err := newMetrics(token, platformURL, agentCfg.Metrics, cfgWatcher)
+	metricsMgr, metricsStore, err := newMetrics(token, platformURL, agentCfg.Metrics, cfgWatcher, traefikManager)
 	if err != nil {
 		return err
 	}

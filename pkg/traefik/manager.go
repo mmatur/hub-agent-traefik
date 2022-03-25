@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/genconf/dynamic"
 	"github.com/traefik/genconf/dynamic/tls"
@@ -22,6 +23,7 @@ type Traefik interface {
 	GetDynamic(ctx context.Context) (*dynamic.Configuration, error)
 	PushDynamic(ctx context.Context, unixNano int64, cfg *dynamic.Configuration) error
 	GetProviderState(ctx context.Context) (ProviderState, error)
+	GetMetrics(ctx context.Context) ([]*dto.MetricFamily, error)
 }
 
 // Manager manages Traefik dynamic configurations.
@@ -106,6 +108,11 @@ func (m *Manager) AddUpdateListener(listener UpdateFunc) {
 // GetDynamic returns the dynamic configuration.
 func (m *Manager) GetDynamic(ctx context.Context) (*dynamic.Configuration, error) {
 	return m.traefik.GetDynamic(ctx)
+}
+
+// GetMetrics returns the Traefik metrics.
+func (m *Manager) GetMetrics(ctx context.Context) ([]*dto.MetricFamily, error) {
+	return m.traefik.GetMetrics(ctx)
 }
 
 func (m *Manager) runProviderStateSync(ctx context.Context) {

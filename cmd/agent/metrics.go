@@ -10,7 +10,7 @@ import (
 	"github.com/traefik/hub-agent-traefik/pkg/platform"
 )
 
-func newMetrics(token, platformURL string, cfg platform.MetricsConfig, cfgWatcher *platform.ConfigWatcher) (*metrics.Manager, *metrics.Store, error) {
+func newMetrics(token, platformURL string, cfg platform.MetricsConfig, cfgWatcher *platform.ConfigWatcher, traefik metrics.Traefik) (*metrics.Manager, *metrics.Store, error) {
 	rc := retryablehttp.NewClient()
 	rc.RetryWaitMin = time.Second
 	rc.RetryWaitMax = 10 * time.Second
@@ -25,7 +25,7 @@ func newMetrics(token, platformURL string, cfg platform.MetricsConfig, cfgWatche
 	}
 
 	store := metrics.NewStore()
-	scraper := metrics.NewScraper(httpClient)
+	scraper := metrics.NewScraper(traefik)
 
 	mgr := metrics.NewManager(client, store, scraper)
 	mgr.SetConfig(cfg.Interval, cfg.Tables)

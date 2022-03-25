@@ -22,6 +22,10 @@ const (
 	flagLogLevel                = "log.level"
 	flagLogFormat               = "log.format"
 	flagTraefikAddr             = "traefik.addr"
+	flagTraefikTLSCA            = "traefik.tls.ca"
+	flagTraefikTLSCert          = "traefik.tls.cert"
+	flagTraefikTLSKey           = "traefik.tls.key"
+	flagTraefikTLSInsecure      = "traefik.tls.insecure"
 )
 
 func main() {

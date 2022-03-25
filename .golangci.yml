@@ -110,3 +110,6 @@ issues:
     - path: cmd/agent/run.go
       linters:
         - funlen
+    # InsecureSkipVerify option set true on purpose.
+    - path: pkg/traefik/client.go
+      text: 'G402: TLS InsecureSkipVerify set true.'

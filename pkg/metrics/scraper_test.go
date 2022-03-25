@@ -1,25 +1,47 @@
 package metrics_test
 
 import (
+	"bufio"
 	"context"
-	"net/http"
-	"net/http/httptest"
+	"fmt"
 	"os"
-	"path/filepath"
-	"strconv"
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/traefik/hub-agent-traefik/pkg/metrics"
 )
 
+type traefikScraperMock struct{}
+
+func (s *traefikScraperMock) GetMetrics(_ context.Context) ([]*dto.MetricFamily, error) {
+	file, err := os.Open("testdata/traefik-metrics.txt")
+	if err != nil {
+		return nil, fmt.Errorf("open file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	textParser := expfmt.TextParser{}
+
+	metricFamilies, err := textParser.TextToMetricFamilies(bufio.NewReader(file))
+	if err != nil {
+		return nil, fmt.Errorf("text to metrics families: %w", err)
+	}
+
+	var m []*dto.MetricFamily
+	for _, mf := range metricFamilies {
+		m = append(m, mf)
+	}
+
+	return m, nil
+}
+
 func TestScraper_ScrapeTraefik(t *testing.T) {
-	srvURL := startServer(t, "testdata/traefik-metrics.txt")
+	s := metrics.NewScraper(&traefikScraperMock{})
 
-	s := metrics.NewScraper(http.DefaultClient)
-
-	got, err := s.Scrape(context.Background(), srvURL)
+	got, err := s.Scrape(context.Background())
 	require.NoError(t, err)
 
 	// service
@@ -41,21 +63,4 @@ func TestScraper_ScrapeTraefik(t *testing.T) {
 	assert.Contains(t, got, &metrics.Counter{Name: metrics.MetricRequestErrors, Service: "default-myIngressRoute-6f97418635c7e18853da@docker", Value: 17})
 
 	require.Len(t, got, 14)
-}
-
-func startServer(t *testing.T, file string) string {
-	t.Helper()
-
-	data, err := os.ReadFile(filepath.Clean(file))
-	require.NoError(t, err)
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
-		w.WriteHeader(http.StatusOK)
-
-		_, _ = w.Write(data)
-	}))
-	t.Cleanup(srv.Close)
-
-	return srv.URL
 }

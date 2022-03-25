@@ -2,14 +2,9 @@ package metrics
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 
 	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
-	"github.com/rs/zerolog/log"
 )
 
 // Metric names.
@@ -91,21 +86,25 @@ func (h Histogram) ServiceName() string {
 
 // Scraper scrapes metrics from Prometheus.
 type Scraper struct {
-	client *http.Client
-
+	traefik       Traefik
 	traefikParser TraefikParser
 }
 
+// Traefik allows fetching metrics from a Traefik instance.
+type Traefik interface {
+	GetMetrics(ctx context.Context) ([]*dto.MetricFamily, error)
+}
+
 // NewScraper returns a scraper instance with parser p.
-func NewScraper(c *http.Client) *Scraper {
+func NewScraper(traefik Traefik) *Scraper {
 	return &Scraper{
-		client:        c,
+		traefik:       traefik,
 		traefikParser: NewTraefikParser(),
 	}
 }
 
 // Scrape returns metrics scraped from all targets.
-func (s *Scraper) Scrape(ctx context.Context, target string) ([]Metric, error) {
+func (s *Scraper) Scrape(ctx context.Context) ([]Metric, error) {
 	// This is a naive approach and should be dealt with
 	// as an iterator later to control the amount of RAM
 	// used while scraping many targets with many services.
@@ -114,9 +113,8 @@ func (s *Scraper) Scrape(ctx context.Context, target string) ([]Metric, error) {
 	p := s.traefikParser
 	var m []Metric
 
-	raw, err := s.scrapeMetrics(ctx, target)
+	raw, err := s.traefik.GetMetrics(ctx)
 	if err != nil {
-		log.Error().Err(err).Str("target", target).Msg("Unable to get metrics from target")
 		return []Metric{}, fmt.Errorf("unable to get metrics from target: %w", err)
 	}
 
@@ -125,36 +123,4 @@ func (s *Scraper) Scrape(ctx context.Context, target string) ([]Metric, error) {
 	}
 
 	return m, nil
-}
-
-func (s *Scraper) scrapeMetrics(ctx context.Context, target string) ([]*dto.MetricFamily, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, http.NoBody)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("scraper: unexpected status code from target url " + target)
-	}
-
-	var m []*dto.MetricFamily
-	dec := expfmt.NewDecoder(resp.Body, expfmt.ResponseFormat(resp.Header))
-	for {
-		var fam dto.MetricFamily
-		err = dec.Decode(&fam)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				return m, nil
-			}
-
-			return nil, err
-		}
-
-		m = append(m, &fam)
-	}
 }
