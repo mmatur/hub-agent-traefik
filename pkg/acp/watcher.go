@@ -127,12 +127,11 @@ func readACPDir(dir string) (map[string]Config, error) {
 
 		var cfg Config
 		if err = yaml.Unmarshal(data, &cfg); err != nil {
-			return fmt.Errorf("deserialize ACP configuration: %w", err)
+			return fmt.Errorf("deserialize ACP configuration %q: %w", path, err)
 		}
 
-		if err := cfg.Validate(); err != nil {
-			log.Error().Err(err).Str("acpName", acpName).Msg("ACP configuration is not valid.")
-
+		if err = cfg.Validate(); err != nil {
+			log.Error().Err(err).Str("acp_name", acpName).Msg("ACP configuration is not valid")
 			return nil
 		}
 
