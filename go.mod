@@ -7,14 +7,14 @@ require (
 	github.com/ettle/strcase v0.1.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/gorilla/websocket v1.4.2
-	github.com/hamba/avro v1.6.3
+	github.com/hamba/avro v1.7.0
 	github.com/hashicorp/go-retryablehttp v0.7.0
 	github.com/ldez/go-git-cmd-wrapper/v2 v2.0.0
 	github.com/pquerna/cachecontrol v0.1.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.32.1
 	github.com/rs/zerolog v1.26.0
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.7.1
 	github.com/traefik/genconf v0.1.0
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/vulcand/predicate v1.1.0
