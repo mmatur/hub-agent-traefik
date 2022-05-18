@@ -42,9 +42,7 @@ linters-settings:
       - octalLiteral
       - paramTypeCombine # already handle by gofumpt.extra-rules
       - unnamedResult
-    settings:
-      hugeParam:
-        sizeThreshold: 110
+      - hugeParam
   gomoddirectives:
     replace-allow-list:
       - github.com/abbot/go-http-auth
@@ -56,6 +54,8 @@ linters:
     - interfacer # deprecated
     - scopelint # deprecated
     - golint # deprecated
+    - exhaustivestruct # deprecated
+    - execinquery # not relevant (SQL)
     - sqlclosecheck # not relevant (SQL)
     - rowserrcheck # not relevant (SQL)
     - cyclop # duplicate of gocyclo
@@ -67,7 +67,7 @@ linters:
     - goerr113
     - wrapcheck
     - exhaustive
-    - exhaustivestruct
+    - exhaustruct
     - testpackage
     - tparallel
     - paralleltest
@@ -79,6 +79,8 @@ linters:
     - nilnil
     - ireturn
     - errchkjson
+    - contextcheck
+    - nonamedreturns
 
 issues:
   exclude-use-default: false

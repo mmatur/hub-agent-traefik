@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/traefik/hub-agent-traefik/pkg/edge"
 )
 
 /*
@@ -16,7 +17,7 @@ Generate password:
 */
 
 func TestDigestAuthError(t *testing.T) {
-	auth := &Config{
+	auth := &edge.ACPBasicDigestAuthConfig{
 		Users: []string{"test"},
 	}
 	_, err := NewHandler(auth, "authName")
@@ -70,7 +71,7 @@ func TestDigestAuthUsers(t *testing.T) {
 			t.Parallel()
 
 			// Creates the configuration for our Authenticator.
-			cfg := &Config{
+			cfg := &edge.ACPBasicDigestAuthConfig{
 				Users: test.givenUsers,
 				Realm: test.realm,
 			}
@@ -94,7 +95,7 @@ func TestDigestAuthUsers(t *testing.T) {
 }
 
 func TestDigestAuthUserHeader(t *testing.T) {
-	cfg := &Config{
+	cfg := &edge.ACPBasicDigestAuthConfig{
 		Users:                 []string{"test2:hub:5bbbb797a1cc41589e591ed7be86f951"},
 		ForwardUsernameHeader: "User",
 	}

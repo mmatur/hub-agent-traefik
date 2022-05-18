@@ -16,16 +16,18 @@ import (
 const (
 	flagAuthServerListenAddr    = "auth-server.listen-addr"
 	flagAuthServerAdvertiseAddr = "auth-server.advertise-addr"
-	flagAuthServerACPDir        = "auth-server.acp-dir"
 	flagHubToken                = "hub.token"
 	flagHubURL                  = "hub.url"
 	flagLogLevel                = "log.level"
 	flagLogFormat               = "log.format"
-	flagTraefikAddr             = "traefik.addr"
+	flagTraefikHost             = "traefik.host"
+	flagTraefikAPIPort          = "traefik.api-port"
+	flagTraefikTunnelPort       = "traefik.tunnel-port"
 	flagTraefikTLSCA            = "traefik.tls.ca"
 	flagTraefikTLSCert          = "traefik.tls.cert"
 	flagTraefikTLSKey           = "traefik.tls.key"
 	flagTraefikTLSInsecure      = "traefik.tls.insecure"
+	flagTraefikDockerSwarmMode  = "traefik.docker.swarm-mode"
 )
 
 func main() {

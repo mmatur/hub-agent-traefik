@@ -1,45 +1,52 @@
 package metrics_test
 
 import (
-	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
-	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/traefik/hub-agent-traefik/pkg/metrics"
+	"github.com/traefik/hub-agent-traefik/pkg/traefik"
 )
 
-type traefikScraperMock struct{}
+func setupTraefikClient(t *testing.T) *traefik.Client {
+	t.Helper()
 
-func (s *traefikScraperMock) GetMetrics(_ context.Context) ([]*dto.MetricFamily, error) {
-	file, err := os.Open("testdata/traefik-metrics.txt")
-	if err != nil {
-		return nil, fmt.Errorf("open file: %w", err)
-	}
-	defer func() { _ = file.Close() }()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/metrics", func(rw http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodGet {
+			http.Error(rw, fmt.Sprintf("unsupported to method: %s", req.Method), http.StatusMethodNotAllowed)
+			return
+		}
 
-	textParser := expfmt.TextParser{}
+		file, err := os.Open("testdata/traefik-metrics.txt")
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-	metricFamilies, err := textParser.TextToMetricFamilies(bufio.NewReader(file))
-	if err != nil {
-		return nil, fmt.Errorf("text to metrics families: %w", err)
-	}
+		rw.WriteHeader(http.StatusOK)
+		_, _ = io.Copy(rw, file)
+	})
 
-	var m []*dto.MetricFamily
-	for _, mf := range metricFamilies {
-		m = append(m, mf)
-	}
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
 
-	return m, nil
+	client, err := traefik.NewClient(srv.URL, true, "", "", "")
+	require.NoError(t, err)
+
+	return client
 }
 
 func TestScraper_ScrapeTraefik(t *testing.T) {
-	s := metrics.NewScraper(&traefikScraperMock{})
+	traefikClient := setupTraefikClient(t)
+	s := metrics.NewScraper(traefikClient)
 
 	got, err := s.Scrape(context.Background())
 	require.NoError(t, err)

@@ -1,0 +1,7 @@
+{
+  "domains": ["example.com"],
+  "notAfter": "2022-05-11T16:58:19.077299+02:00",
+  "notBefore": "2022-05-11T16:58:19.077299+02:00",
+  "certificate":"Y2VydA==",
+  "privateKey":"a2V5"
+}

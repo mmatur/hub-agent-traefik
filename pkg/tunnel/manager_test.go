@@ -23,8 +23,6 @@ func TestManager_updateTunnels(t *testing.T) {
 
 	wait := make(chan struct{})
 	traefikMockAddr := launchTraefikMock(t, wait, "cTunnel", "nTunnel", "sTunnel")
-	traefikHost, traefikPort, err := net.SplitHostPort(traefikMockAddr)
-	require.NoError(t, err)
 
 	currentBroker := buildBroker(t, []byte("cTunnel"), "current-tunnel")
 	currentBrokerURL, err := url.Parse(currentBroker.URL)
@@ -42,26 +40,23 @@ func TestManager_updateTunnels(t *testing.T) {
 		listClusterTunnelEndpoints: func() ([]Endpoint, error) {
 			return []Endpoint{
 				{
-					TunnelID:        "current-tunnel",
-					BrokerEndpoint:  "ws://" + currentBrokerURL.Host,
-					ClusterEndpoint: ":" + traefikPort,
+					TunnelID:       "current-tunnel",
+					BrokerEndpoint: "ws://" + currentBrokerURL.Host,
 				},
 				{
-					TunnelID:        "new-tunnel",
-					BrokerEndpoint:  "ws://" + newBrokerURL.Host,
-					ClusterEndpoint: ":" + traefikPort,
+					TunnelID:       "new-tunnel",
+					BrokerEndpoint: "ws://" + newBrokerURL.Host,
 				},
 				{
-					TunnelID:        "stable-tunnel",
-					BrokerEndpoint:  "ws://" + stableBrokerURL.Host,
-					ClusterEndpoint: ":" + traefikPort,
+					TunnelID:       "stable-tunnel",
+					BrokerEndpoint: "ws://" + stableBrokerURL.Host,
 				},
 			}, nil
 		},
 	}
 
 	c := fakeClient(t)
-	manager := NewManager(client, traefikHost, "token")
+	manager := NewManager(client, traefikMockAddr, "token", time.Minute)
 	manager.tunnels["current-tunnel-new-broker"] = &tunnel{
 		BrokerEndpoint:  "old-endpoint",
 		ClusterEndpoint: "old-endpoint",
@@ -88,11 +83,8 @@ func TestManager_updateTunnels(t *testing.T) {
 	manager.tunnelsMu.Lock()
 	assert.Len(t, manager.tunnels, 3)
 	assert.Equal(t, "ws://"+currentBrokerURL.Host, manager.tunnels["current-tunnel"].BrokerEndpoint)
-	assert.Equal(t, ":"+traefikPort, manager.tunnels["current-tunnel"].ClusterEndpoint)
 	assert.Equal(t, "ws://"+newBrokerURL.Host, manager.tunnels["new-tunnel"].BrokerEndpoint)
-	assert.Equal(t, ":"+traefikPort, manager.tunnels["new-tunnel"].ClusterEndpoint)
 	assert.Equal(t, "ws://"+stableBrokerURL.Host, manager.tunnels["stable-tunnel"].BrokerEndpoint)
-	assert.Equal(t, ":"+traefikPort, manager.tunnels["stable-tunnel"].ClusterEndpoint)
 
 	manager.tunnelsMu.Unlock()
 

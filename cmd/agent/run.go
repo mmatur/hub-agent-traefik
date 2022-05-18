@@ -4,18 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/url"
 	"time"
 
+	"github.com/docker/docker/client"
 	"github.com/ettle/strcase"
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/hub-agent-traefik/pkg/acp"
 	"github.com/traefik/hub-agent-traefik/pkg/certificate"
+	"github.com/traefik/hub-agent-traefik/pkg/edge"
 	"github.com/traefik/hub-agent-traefik/pkg/heartbeat"
 	"github.com/traefik/hub-agent-traefik/pkg/logger"
 	"github.com/traefik/hub-agent-traefik/pkg/platform"
+	"github.com/traefik/hub-agent-traefik/pkg/provider"
 	"github.com/traefik/hub-agent-traefik/pkg/topology"
-	"github.com/traefik/hub-agent-traefik/pkg/topology/state"
 	topostore "github.com/traefik/hub-agent-traefik/pkg/topology/store"
 	"github.com/traefik/hub-agent-traefik/pkg/traefik"
 	"github.com/traefik/hub-agent-traefik/pkg/tunnel"
@@ -23,6 +24,11 @@ import (
 	"github.com/urfave/cli/v2"
 	"golang.org/x/sync/errgroup"
 )
+
+// ProviderWatcher watches provider changes.
+type ProviderWatcher interface {
+	Watch(ctx context.Context, clusterID string, fn func(map[string]*topology.Service)) error
+}
 
 type runCmd struct {
 	flags []cli.Flag
@@ -44,10 +50,22 @@ func newRunCmd() runCmd {
 				Value:   "json",
 			},
 			&cli.StringFlag{
-				Name:     flagTraefikAddr,
-				Usage:    "Address to advertise for Traefik to reach the Agent authentication server. Required when the automatic discovery fails",
-				EnvVars:  []string{strcase.ToSNAKE(flagTraefikAddr)},
+				Name:     flagTraefikHost,
+				Usage:    "Host to advertise for Traefik to reach the Agent authentication server. Required when the automatic discovery fails",
+				EnvVars:  []string{strcase.ToSNAKE(flagTraefikHost)},
 				Required: true,
+			},
+			&cli.StringFlag{
+				Name:    flagTraefikAPIPort,
+				Usage:   "Port of the Traefik entrypoint for API communication with Traefik",
+				EnvVars: []string{strcase.ToSNAKE(flagTraefikAPIPort)},
+				Value:   "9900",
+			},
+			&cli.StringFlag{
+				Name:    flagTraefikTunnelPort,
+				Usage:   "Port of the Traefik entrypoint for tunnel communication",
+				EnvVars: []string{strcase.ToSNAKE(flagTraefikTunnelPort)},
+				Value:   "9901",
 			},
 			&cli.StringFlag{
 				Name:     flagHubToken,
@@ -74,12 +92,6 @@ func newRunCmd() runCmd {
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerAdvertiseAddr)},
 			},
 			&cli.StringFlag{
-				Name:    flagAuthServerACPDir,
-				Usage:   "Directory path containing Access Control Policy configurations",
-				EnvVars: []string{strcase.ToSNAKE(flagAuthServerACPDir)},
-				Value:   "/etc/hub-agent-traefik/acps/",
-			},
-			&cli.StringFlag{
 				Name:     flagTraefikTLSCA,
 				Usage:    "Path to the certificate authority which signed TLS credentials",
 				EnvVars:  []string{strcase.ToSNAKE(flagTraefikTLSCA)},
@@ -97,10 +109,16 @@ func newRunCmd() runCmd {
 				EnvVars:  []string{strcase.ToSNAKE(flagTraefikTLSKey)},
 				Required: false,
 			},
-			&cli.StringFlag{
+			&cli.BoolFlag{
 				Name:     flagTraefikTLSInsecure,
 				Usage:    "Activate insecure TLS",
 				EnvVars:  []string{strcase.ToSNAKE(flagTraefikTLSInsecure)},
+				Required: false,
+			},
+			&cli.BoolFlag{
+				Name:     flagTraefikDockerSwarmMode,
+				Usage:    "Activate Traefik Docker Swarm Mode",
+				EnvVars:  []string{strcase.ToSNAKE(flagTraefikDockerSwarmMode)},
 				Required: false,
 			},
 		},
@@ -132,15 +150,26 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 		return fmt.Errorf("get platform config: %w", err)
 	}
 
-	traefikAddr := cliCtx.String(flagTraefikAddr)
+	traefikHost := cliCtx.String(flagTraefikHost)
+	traefikAPIPort := cliCtx.String(flagTraefikAPIPort)
+	traefikTunnelPort := cliCtx.String(flagTraefikTunnelPort)
+
+	apiURL := "https://" + net.JoinHostPort(traefikHost, traefikAPIPort)
+	tunnelAddr := net.JoinHostPort(traefikHost, traefikTunnelPort)
+
 	traefikTLSCA := cliCtx.String(flagTraefikTLSCA)
 	traefikTLSCert := cliCtx.String(flagTraefikTLSCert)
 	traefikTLSKey := cliCtx.String(flagTraefikTLSKey)
 	traefikTLSInsecure := cliCtx.Bool(flagTraefikTLSInsecure)
 
-	traefikClient, err := traefik.NewClient(traefikAddr, traefikTLSInsecure, traefikTLSCA, traefikTLSCert, traefikTLSKey)
+	traefikClient, err := traefik.NewClient(apiURL, traefikTLSInsecure, traefikTLSCA, traefikTLSCert, traefikTLSKey)
 	if err != nil {
 		return fmt.Errorf("create Traefik client: %w", err)
+	}
+
+	_, err = traefikClient.GetProviderState(cliCtx.Context)
+	if err != nil {
+		return fmt.Errorf("unreachable Traefik probably because the Hub TLS configuration in Traefik is missing: %w", err)
 	}
 
 	listenAddr, reachableAddr := cliCtx.String(flagAuthServerListenAddr), cliCtx.String(flagAuthServerAdvertiseAddr)
@@ -154,75 +183,75 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	log.Info().Str("addr", reachableAddr).Msg("Using Agent reachable address")
 
-	traefikManager, err := traefik.NewManager(cliCtx.Context, traefikClient)
-	if err != nil {
-		return fmt.Errorf("new Traefik manager: %w", err)
-	}
-
-	middlewareCfgBuilder := acp.NewMiddlewareConfigBuilder(traefikManager, reachableAddr)
-
 	acpServer := acp.NewServer(listenAddr)
-	routerUpdater := acp.NewRouterUpdater(traefikManager, agentCfg.AccessControl.MaxSecuredRoutes)
-
-	fetcher := state.NewFetcher(clusterID, traefikManager)
-	acpWatcher := acp.NewWatcher(
-		cliCtx.String(flagAuthServerACPDir),
-		[]acp.UpdatedACPFunc{
-			acpServer.UpdateHandler,
-			middlewareCfgBuilder.UpdateConfig,
-			fetcher.UpdateACP,
-			routerUpdater.UpdateACP,
-		},
-	)
 
 	certClient, err := certificate.NewClient(platformURL, token)
 	if err != nil {
 		return fmt.Errorf("create certificate client: %w", err)
 	}
-	tlsManager := certificate.NewTLSConfigBuilder(traefikManager, certClient)
-	traefikManager.AddUpdateListener(tlsManager.ObtainCertificates)
-	traefikManager.AddUpdateListener(routerUpdater.UpdateDynamic)
 
-	store, err := topostore.New(cliCtx.Context, topostore.Config{
+	dockerClient, err := client.NewClientWithOpts()
+	if err != nil {
+		return fmt.Errorf("create docker client: %w", err)
+	}
+
+	var dockerProvider ProviderWatcher
+	if cliCtx.Bool(flagTraefikDockerSwarmMode) {
+		dockerProvider = provider.NewDockerSwarm(dockerClient, 30*time.Second)
+	} else {
+		dockerProvider = provider.NewDocker(dockerClient)
+	}
+
+	config := topostore.Config{
 		TopologyConfig: agentCfg.Topology,
 		Token:          token,
-	})
+	}
+	store, err := topostore.New(cliCtx.Context, config)
 	if err != nil {
 		return fmt.Errorf("create topology store: %w", err)
 	}
 
-	topologyWatcher := topology.NewWatcher(fetcher, store)
 	cfgWatcher := platform.NewConfigWatcher(15*time.Minute, platformClient)
-	metricsMgr, metricsStore, err := newMetrics(token, platformURL, agentCfg.Metrics, cfgWatcher, traefikManager)
+	metricsMgr, metricsStore, err := newMetrics(token, platformURL, agentCfg.Metrics, cfgWatcher, traefikClient)
 	if err != nil {
 		return err
 	}
+
+	edgeClient, err := edge.NewClient(platformURL, token)
+	if err != nil {
+		return fmt.Errorf("create edge client: %w", err)
+	}
+
+	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, reachableAddr, agentCfg.AccessControl.MaxSecuredRoutes)
+
+	edgeWatcher := edge.NewWatcher(edgeClient, time.Minute)
+
+	edgeWatcher.AddListener(edgeUpdater.Update)
+	edgeWatcher.AddListener(func(_ context.Context, _ []edge.Ingress, acps []edge.ACP) error {
+		return acpServer.UpdateHandler(acps)
+	})
 
 	tunnelClient, err := tunnel.NewClient(platformURL, token)
 	if err != nil {
 		return fmt.Errorf("create tunnel client: %w", err)
 	}
 
-	addr, err := url.Parse(traefikAddr)
-	if err != nil {
-		return fmt.Errorf("parse traefik addr: %w", err)
-	}
-	host, _, err := net.SplitHostPort(addr.Host)
-	if err != nil {
-		return fmt.Errorf("split host port for traefik addr: %w", err)
-	}
-	tunnelManager := tunnel.NewManager(tunnelClient, host, token)
+	tunnelManager := tunnel.NewManager(tunnelClient, tunnelAddr, token, time.Minute)
 
-	heartbeater := heartbeat.NewHeartbeater(platformClient)
+	heartBeater := heartbeat.NewHeartbeater(platformClient)
 
 	group, ctx := errgroup.WithContext(cliCtx.Context)
 	group.Go(func() error {
-		heartbeater.Run(ctx)
+		heartBeater.Run(ctx)
 		return nil
 	})
 
 	group.Go(func() error {
-		acpWatcher.Run(ctx)
+		return listenDocker(ctx, dockerProvider, store, clusterID)
+	})
+
+	group.Go(func() error {
+		edgeWatcher.Run(ctx)
 		return nil
 	})
 
@@ -231,26 +260,11 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 	})
 
 	group.Go(func() error {
-		tlsManager.Run(ctx)
-		return nil
-	})
-
-	group.Go(func() error {
-		traefikManager.Run(ctx)
-		return nil
-	})
-
-	group.Go(func() error {
-		return metricsMgr.Run(ctx, traefikAddr)
+		return metricsMgr.Run(ctx, traefikHost)
 	})
 
 	group.Go(func() error {
 		return runAlerting(ctx, token, platformURL, metricsStore)
-	})
-
-	group.Go(func() error {
-		topologyWatcher.Start(ctx)
-		return nil
 	})
 
 	group.Go(func() error {
@@ -259,6 +273,37 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 	})
 
 	return group.Wait()
+}
+
+func listenDocker(ctx context.Context, dockerProvider ProviderWatcher, store *topostore.Store, clusterID string) error {
+	err := dockerProvider.Watch(ctx, clusterID, func(services map[string]*topology.Service) {
+		cluster := &topology.Cluster{
+			ID: clusterID,
+			Overview: topology.Overview{
+				ServiceCount:           len(services),
+				IngressControllerTypes: []string{"traefik"},
+			},
+			Services: services,
+			IngressControllers: map[string]*topology.IngressController{
+				"traefik@traefik": {
+					Name: "traefik@traefik",
+					Kind: "Multiplatform",
+					Type: "traefik",
+				},
+			},
+		}
+
+		err := store.Write(ctx, cluster)
+		if err != nil {
+			log.Error().Err(err).Msg("Topology write")
+			return
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("docker provider watch: %w", err)
+	}
+
+	return nil
 }
 
 func getAgentReachableAddress(ctx context.Context, traefikClient *traefik.Client, listenAddr string) (string, error) {
@@ -272,7 +317,7 @@ func getAgentReachableAddress(ctx context.Context, traefikClient *traefik.Client
 		return "", err
 	}
 
-	return fmt.Sprintf("http://%s:%s", reachableIP, port), nil
+	return "http://" + net.JoinHostPort(reachableIP, port), nil
 }
 
 func initAgent(ctx context.Context, platformClient *platform.Client) (platform.Config, string, error) {

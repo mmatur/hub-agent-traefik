@@ -18,11 +18,11 @@ import (
 	"github.com/ldez/go-git-cmd-wrapper/v2/pull"
 	"github.com/ldez/go-git-cmd-wrapper/v2/push"
 	"github.com/rs/zerolog/log"
-	"github.com/traefik/hub-agent-traefik/pkg/topology/state"
+	"github.com/traefik/hub-agent-traefik/pkg/topology"
 )
 
 // Write writes the given cluster state in the current git repository.
-func (s *Store) Write(ctx context.Context, st *state.Cluster) error {
+func (s *Store) Write(ctx context.Context, st *topology.Cluster) error {
 	output, err := git.Branch(branch.List, branch.Format("%(refname:short)"), git.CmdExecutor(s.gitExecutor))
 	if err != nil {
 		return fmt.Errorf("list branches: %w %s", err, output)
@@ -78,7 +78,7 @@ func (s *Store) Write(ctx context.Context, st *state.Cluster) error {
 // It uses reflect to have a common way to create a file tree.
 // For each public cluster field a directory is created with the field name.
 // For each supported types (map, slice, string) a sub function creates files in this directory.
-func (s *Store) write(st *state.Cluster) error {
+func (s *Store) write(st *topology.Cluster) error {
 	if st == nil {
 		return nil
 	}

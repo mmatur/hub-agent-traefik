@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/traefik/hub-agent-traefik/pkg/traefik"
 )
 
 // Metric names.
@@ -86,19 +87,14 @@ func (h Histogram) ServiceName() string {
 
 // Scraper scrapes metrics from Prometheus.
 type Scraper struct {
-	traefik       Traefik
+	traefik       *traefik.Client
 	traefikParser TraefikParser
 }
 
-// Traefik allows fetching metrics from a Traefik instance.
-type Traefik interface {
-	GetMetrics(ctx context.Context) ([]*dto.MetricFamily, error)
-}
-
 // NewScraper returns a scraper instance with parser p.
-func NewScraper(traefik Traefik) *Scraper {
+func NewScraper(traefikClient *traefik.Client) *Scraper {
 	return &Scraper{
-		traefik:       traefik,
+		traefik:       traefikClient,
 		traefikParser: NewTraefikParser(),
 	}
 }

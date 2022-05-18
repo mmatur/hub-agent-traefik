@@ -16,20 +16,8 @@ import (
 	jwtreq "github.com/golang-jwt/jwt/request"
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/hub-agent-traefik/pkg/acp/jwt/expr"
+	"github.com/traefik/hub-agent-traefik/pkg/edge"
 )
-
-// Config configures a JWT ACP handler.
-type Config struct {
-	SigningSecret              string            `yaml:"signingSecret"`
-	SigningSecretBase64Encoded bool              `yaml:"signingSecretBase64Encoded"`
-	PublicKey                  string            `yaml:"publicKey"`
-	JWKsFile                   FileOrContent     `yaml:"jwksFile"`
-	JWKsURL                    string            `yaml:"jwksUrl"`
-	StripAuthorizationHeader   bool              `yaml:"stripAuthorizationHeader"`
-	ForwardHeaders             map[string]string `yaml:"forwardHeaders"`
-	TokenQueryKey              string            `yaml:"tokenQueryKey"`
-	Claims                     string            `yaml:"claims"`
-}
 
 // Handler is a JWT ACP Handler.
 type Handler struct {
@@ -54,7 +42,7 @@ type Handler struct {
 }
 
 // NewHandler returns a new JWT ACP Handler.
-func NewHandler(cfg *Config, polName string) (*Handler, error) {
+func NewHandler(cfg *edge.ACPJWTConfig, polName string) (*Handler, error) {
 	if cfg.PublicKey == "" && cfg.SigningSecret == "" && cfg.JWKsFile == "" && cfg.JWKsURL == "" {
 		return nil, errors.New("at least a signing secret, public key or a JWKs file or URL is required")
 	}
@@ -117,7 +105,7 @@ func NewHandler(cfg *Config, polName string) (*Handler, error) {
 	}, nil
 }
 
-func keySet(src *Config) (KeySet, error) {
+func keySet(src *edge.ACPJWTConfig) (KeySet, error) {
 	if src.JWKsFile != "" {
 		if src.JWKsFile.IsPath() {
 			return NewFileKeySet(src.JWKsFile.String()), nil

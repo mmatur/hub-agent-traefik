@@ -10,6 +10,10 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/basicauth"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/digestauth"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/jwt"
+	"github.com/traefik/hub-agent-traefik/pkg/edge"
 )
 
 // Server serves ACP endpoints.
@@ -27,8 +31,8 @@ func NewServer(listenAddr string) *Server {
 }
 
 // UpdateHandler updates auth routes served by the Server.
-func (s *Server) UpdateHandler(cfgs map[string]Config) error {
-	routes, err := buildRoutes(cfgs)
+func (s *Server) UpdateHandler(acps []edge.ACP) error {
+	routes, err := buildRoutes(acps)
 	if err != nil {
 		return fmt.Errorf("build routes: %w", err)
 	}
@@ -84,4 +88,47 @@ func (s *Server) Run(ctx context.Context) error {
 	case <-srvDone:
 		return errors.New("auth server stopped")
 	}
+}
+
+func buildRoutes(acps []edge.ACP) (http.Handler, error) {
+	mux := http.NewServeMux()
+
+	for _, acp := range acps {
+		switch {
+		case acp.JWT != nil:
+			jwtHandler, err := jwt.NewHandler(acp.JWT, acp.Name)
+			if err != nil {
+				return nil, fmt.Errorf("create %q JWT ACP handler: %w", acp.Name, err)
+			}
+
+			path := "/" + acp.Name
+
+			log.Debug().Str("acp_name", acp.Name).Str("path", path).Msg("Registering JWT ACP handler")
+
+			mux.Handle(path, jwtHandler)
+
+		case acp.BasicAuth != nil:
+			h, err := basicauth.NewHandler(acp.BasicAuth, acp.Name)
+			if err != nil {
+				return nil, fmt.Errorf("create %q basic auth ACP handler: %w", acp.Name, err)
+			}
+			path := "/" + acp.Name
+			log.Debug().Str("acp_name", acp.Name).Str("path", path).Msg("Registering basic auth ACP handler")
+			mux.Handle(path, h)
+
+		case acp.DigestAuth != nil:
+			h, err := digestauth.NewHandler(acp.DigestAuth, acp.Name)
+			if err != nil {
+				return nil, fmt.Errorf("create %q digest auth ACP handler: %w", acp.Name, err)
+			}
+			path := "/" + acp.Name
+			log.Debug().Str("acp_name", acp.Name).Str("path", path).Msg("Registering digest auth ACP handler")
+			mux.Handle(path, h)
+
+		default:
+			return nil, errors.New("unknown ACP handler type")
+		}
+	}
+
+	return mux, nil
 }

@@ -27,6 +27,7 @@ type Manager struct {
 	client      Backend
 	traefikAddr string
 	token       string
+	interval    time.Duration
 
 	tunnelsMu sync.Mutex
 	tunnels   map[string]*tunnel
@@ -47,11 +48,12 @@ func (t *tunnel) Close() error {
 }
 
 // NewManager returns a new manager instance.
-func NewManager(tunnels Backend, traefikAddr, token string) Manager {
+func NewManager(tunnels Backend, traefikAddr, token string, interval time.Duration) Manager {
 	return Manager{
 		client:      tunnels,
 		traefikAddr: traefikAddr,
 		token:       token,
+		interval:    interval,
 		tunnels:     make(map[string]*tunnel),
 	}
 }
@@ -60,7 +62,7 @@ func NewManager(tunnels Backend, traefikAddr, token string) Manager {
 // While running, the manager fetches every minute the tunnels available for
 // this cluster and create/delete tunnels accordingly.
 func (m *Manager) Run(ctx context.Context) {
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(m.interval)
 	defer ticker.Stop()
 
 	if err := m.updateTunnels(ctx); err != nil {
@@ -107,7 +109,6 @@ func (m *Manager) updateTunnels(ctx context.Context) error {
 	for _, endpoint := range endpoints {
 		logger := log.With().
 			Str("broker_endpoint", endpoint.BrokerEndpoint).
-			Str("cluster_endpoint", endpoint.ClusterEndpoint).
 			Str("tunnel_id", endpoint.TunnelID).
 			Logger()
 		currentTunnels[endpoint.TunnelID] = struct{}{}
@@ -118,7 +119,7 @@ func (m *Manager) updateTunnels(ctx context.Context) error {
 			continue
 		}
 
-		if tun.BrokerEndpoint != endpoint.BrokerEndpoint || tun.ClusterEndpoint != endpoint.ClusterEndpoint {
+		if tun.BrokerEndpoint != endpoint.BrokerEndpoint {
 			if err = tun.Close(); err != nil {
 				logger.Error().Err(err).Msg("Unable to close tunnel")
 			}
@@ -143,7 +144,7 @@ func (m *Manager) updateTunnels(ctx context.Context) error {
 }
 
 func (m *Manager) launchTunnel(endpoint Endpoint) {
-	t := &tunnel{BrokerEndpoint: endpoint.BrokerEndpoint, ClusterEndpoint: endpoint.ClusterEndpoint}
+	t := &tunnel{BrokerEndpoint: endpoint.BrokerEndpoint}
 	m.tunnels[endpoint.TunnelID] = t
 
 	go func(t *tunnel, tunnelID string) {
@@ -209,13 +210,8 @@ func (t *tunnel) launch(tunnelID, token, traefikAddr string) error {
 			return fmt.Errorf("accept: %w", acceptErr)
 		}
 
-		_, port, err := net.SplitHostPort(t.ClusterEndpoint)
-		if err != nil {
-			return fmt.Errorf("split host port for cluster endpoint: %w", err)
-		}
-
 		go func(brokerConn net.Conn) {
-			if err = proxy(brokerConn, fmt.Sprintf("%s:%s", traefikAddr, port)); err != nil {
+			if err = proxy(brokerConn, traefikAddr); err != nil {
 				log.Error().Err(err).Msg("Unable to proxy to Traefik")
 			}
 		}(brokerConn)

@@ -7,20 +7,13 @@ import (
 
 	goauth "github.com/abbot/go-http-auth"
 	"github.com/rs/zerolog/log"
+	"github.com/traefik/hub-agent-traefik/pkg/edge"
 )
 
 const defaultRealm = "hub"
 
 // Users holds a list of users.
 type Users []string
-
-// Config configures a basic auth ACP handler.
-type Config struct {
-	Users                    Users  `yaml:"users"`
-	Realm                    string `yaml:"realm"`
-	StripAuthorizationHeader bool   `yaml:"stripAuthorizationHeader"`
-	ForwardUsernameHeader    string `yaml:"forwardUsernameHeader"`
-}
 
 // Handler is a basic auth ACP Handler.
 type Handler struct {
@@ -32,7 +25,7 @@ type Handler struct {
 }
 
 // NewHandler creates a new basic auth ACP Handler.
-func NewHandler(cfg *Config, name string) (*Handler, error) {
+func NewHandler(cfg *edge.ACPBasicDigestAuthConfig, name string) (*Handler, error) {
 	users, err := getUsers(cfg.Users, basicUserParser)
 	if err != nil {
 		return nil, err

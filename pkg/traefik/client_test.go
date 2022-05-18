@@ -3,13 +3,15 @@ package traefik
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/traefik/genconf/dynamic"
+	traefiktls "github.com/traefik/genconf/dynamic/tls"
 )
 
 func TestMTLS(t *testing.T) {
@@ -18,11 +20,9 @@ func TestMTLS(t *testing.T) {
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
+	callCount := 0
 	mux.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
-		b, err2 := json.Marshal(RunTimeRepresentation{})
-		require.NoError(t, err2)
-		_, err2 = rw.Write(b)
-		require.NoError(t, err2)
+		callCount++
 	})
 
 	serverCertificate, err := tls.LoadX509KeyPair(
@@ -46,7 +46,31 @@ func TestMTLS(t *testing.T) {
 	client, err := NewClient(ts.URL, false, caPath, certPath, keyPath)
 	require.NoError(t, err)
 
-	dynamic, err := client.GetDynamic(context.Background())
+	err = client.PushDynamic(context.Background(), time.Now().UnixNano(), emptyDynamicConfiguration())
 	require.NoError(t, err)
-	assert.NotNil(t, dynamic)
+
+	assert.Equal(t, 1, callCount)
+}
+
+func emptyDynamicConfiguration() *dynamic.Configuration {
+	return &dynamic.Configuration{
+		HTTP: &dynamic.HTTPConfiguration{
+			Routers:           make(map[string]*dynamic.Router),
+			Middlewares:       make(map[string]*dynamic.Middleware),
+			Services:          make(map[string]*dynamic.Service),
+			ServersTransports: make(map[string]*dynamic.ServersTransport),
+		},
+		TCP: &dynamic.TCPConfiguration{
+			Routers:  make(map[string]*dynamic.TCPRouter),
+			Services: make(map[string]*dynamic.TCPService),
+		},
+		TLS: &dynamic.TLSConfiguration{
+			Stores:  make(map[string]traefiktls.Store),
+			Options: make(map[string]traefiktls.Options),
+		},
+		UDP: &dynamic.UDPConfiguration{
+			Routers:  make(map[string]*dynamic.UDPRouter),
+			Services: make(map[string]*dynamic.UDPService),
+		},
+	}
 }

@@ -3,13 +3,16 @@ package certificate
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
-	"strings"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/rs/zerolog/log"
+	"github.com/traefik/hub-agent-traefik/pkg/logger"
 )
 
 // APIError represents an error returned by the API.
@@ -20,6 +23,15 @@ type APIError struct {
 
 func (a APIError) Error() string {
 	return fmt.Sprintf("failed with code %d: %s", a.StatusCode, a.Message)
+}
+
+// Certificate represents the certificate returned by the platform.
+type Certificate struct {
+	Domains     []string  `json:"domains"`
+	NotAfter    time.Time `json:"notAfter"`
+	NotBefore   time.Time `json:"notBefore"`
+	Certificate []byte    `json:"certificate"`
+	PrivateKey  []byte    `json:"privateKey"`
 }
 
 // Client allows interacting with the certificates service.
@@ -37,40 +49,24 @@ func NewClient(baseURL, token string) (*Client, error) {
 		return nil, fmt.Errorf("invalid certificate client url: %w", err)
 	}
 
+	rc := retryablehttp.NewClient()
+	rc.RetryMax = 4
+	rc.Logger = logger.NewRetryableHTTPWrapper(log.Logger.With().Str("component", "certificate-client").Logger())
+	rc.HTTPClient.Timeout = 5 * time.Second
+
 	return &Client{
-		baseURL: base,
-		token:   token,
-		httpClient: &http.Client{
-			Timeout: 5 * time.Second,
-		},
+		baseURL:    base,
+		token:      token,
+		httpClient: rc.StandardClient(),
 	}, nil
 }
 
-// Certificate represents the certificate returned by the platform.
-type Certificate struct {
-	Domains     []string  `json:"domains"`
-	NotAfter    time.Time `json:"notAfter"`
-	NotBefore   time.Time `json:"notBefore"`
-	Certificate []byte    `json:"certificate"`
-	PrivateKey  []byte    `json:"privateKey"`
-}
-
-// ErrCertIssuancePending is returned when certificate issuance is pending.
-var ErrCertIssuancePending = errors.New("certificate issuance is pending")
-
-// Obtain obtains a certificate for the given domains.
-func (c *Client) Obtain(domains []string) (Certificate, error) {
-	baseURL, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "/certificates"))
+// GetCertificate obtains a certificate for the workspace.
+func (c *Client) GetCertificate(ctx context.Context) (Certificate, error) {
+	baseURL, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "/wildcard-certificate"))
 	if err != nil {
 		return Certificate{}, fmt.Errorf("parse endpoint: %w", err)
 	}
-
-	query := baseURL.Query()
-	query.Set("domains", strings.Join(domains, ","))
-	baseURL.RawQuery = query.Encode()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL.String(), http.NoBody)
 	if err != nil {
@@ -85,15 +81,12 @@ func (c *Client) Obtain(domains []string) (Certificate, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// The certificate is not yet available.
-	if resp.StatusCode == http.StatusAccepted {
-		return Certificate{}, ErrCertIssuancePending
-	}
-
 	if resp.StatusCode != http.StatusOK {
+		all, _ := io.ReadAll(resp.Body)
+
 		apiErr := APIError{StatusCode: resp.StatusCode}
-		if err = json.NewDecoder(resp.Body).Decode(&apiErr); err != nil {
-			return Certificate{}, fmt.Errorf("failed with code %d: decode response: %w", resp.StatusCode, err)
+		if err = json.Unmarshal(all, &apiErr); err != nil {
+			apiErr.Message = string(all)
 		}
 
 		return Certificate{}, apiErr

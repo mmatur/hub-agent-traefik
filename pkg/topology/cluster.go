@@ -1,4 +1,4 @@
-package state
+package topology
 
 import "github.com/traefik/genconf/dynamic/types"
 
@@ -35,9 +35,11 @@ type IngressController struct {
 
 // Service describes a Service.
 type Service struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	ClusterID string `json:"clusterId"`
+	Name      string   `json:"name"`
+	Type      string   `json:"type"`
+	ClusterID string   `json:"clusterId"`
+	IPs       []string `json:"externalIPs,omitempty"`
+	Ports     []int    `json:"externalPorts,omitempty"`
 }
 
 // IngressMeta represents the common Ingress metadata properties.

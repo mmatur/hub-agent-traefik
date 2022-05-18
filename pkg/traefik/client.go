@@ -31,7 +31,7 @@ const hostname = "proxy.traefik"
 type Client struct {
 	baseURL *url.URL
 
-	httpClient *retryablehttp.Client
+	httpClient *http.Client
 }
 
 // NewClient returns a new Client.
@@ -39,9 +39,6 @@ func NewClient(baseURL string, insecure bool, ca, cert, key string) (*Client, er
 	u, err := url.ParseRequestURI(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse url: %w", err)
-	}
-	if u.Scheme != "https" {
-		return nil, fmt.Errorf("%q should have an `https` scheme", baseURL)
 	}
 
 	tlsCfg, err := createTLSConf(insecure, ca, cert, key)
@@ -56,7 +53,7 @@ func NewClient(baseURL string, insecure bool, ca, cert, key string) (*Client, er
 
 	return &Client{
 		baseURL:    u,
-		httpClient: rc,
+		httpClient: rc.StandardClient(),
 	}, nil
 }
 
@@ -115,43 +112,6 @@ func loadCA(caPath string) (*x509.CertPool, error) {
 	return certPool, nil
 }
 
-// RunTimeRepresentation holds the dynamic configuration return by Traefik API.
-type RunTimeRepresentation struct {
-	Routers  map[string]*dynamic.Router  `json:"routers,omitempty"`
-	Services map[string]*dynamic.Service `json:"services,omitempty"`
-}
-
-// GetDynamic gets the dynamic configuration.
-func (c *Client) GetDynamic(ctx context.Context) (*dynamic.Configuration, error) {
-	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "api/rawdata"))
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("build request for %q: %w", endpoint.String(), err)
-	}
-
-	resp, err := c.doReq(req)
-	if err != nil {
-		return nil, fmt.Errorf("request %q: %w", endpoint.String(), err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	var rawData RunTimeRepresentation
-	if err := json.NewDecoder(resp.Body).Decode(&rawData); err != nil {
-		return nil, fmt.Errorf("decode rawdata: %w", err)
-	}
-
-	return &dynamic.Configuration{
-		HTTP: &dynamic.HTTPConfiguration{
-			Routers:  rawData.Routers,
-			Services: rawData.Services,
-		},
-	}, nil
-}
-
 type configRequest struct {
 	UnixNano      int64                  `json:"unixNano"`
 	Configuration *dynamic.Configuration `json:"configuration"`
@@ -185,7 +145,9 @@ func (c *Client) PushDynamic(ctx context.Context, unixNano int64, cfg *dynamic.C
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("expected status code %d; got %d", http.StatusOK, resp.StatusCode)
+		data, _ := io.ReadAll(resp.Body)
+
+		return fmt.Errorf("expected status code %d; got %d: %s", http.StatusOK, resp.StatusCode, bytes.TrimSpace(data))
 	}
 
 	return nil
@@ -215,7 +177,7 @@ func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
 
 	defer func() { _ = s.Close() }()
 
-	transport, isTransport := c.httpClient.HTTPClient.Transport.(*http.Transport)
+	transport, isTransport := c.httpClient.Transport.(*http.Transport)
 	if !isTransport {
 		return "", fmt.Errorf("http client transport is not an http.Transport")
 	}
@@ -251,10 +213,8 @@ func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		b, errRead := io.ReadAll(resp.Body)
-		if errRead != nil {
-			return "", fmt.Errorf("read body: %w", errRead)
-		}
+		b, _ := io.ReadAll(resp.Body)
+
 		return "", fmt.Errorf("expected status code %d; got %d: %s", http.StatusOK, resp.StatusCode, bytes.TrimSpace(b))
 	}
 
@@ -294,7 +254,9 @@ func (c *Client) GetProviderState(ctx context.Context) (ProviderState, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return ProviderState{}, fmt.Errorf("expected status code %d; got %d", http.StatusOK, resp.StatusCode)
+		b, _ := io.ReadAll(resp.Body)
+
+		return ProviderState{}, fmt.Errorf("expected status code %d; got %d: %s", http.StatusOK, resp.StatusCode, bytes.TrimSpace(b))
 	}
 
 	var ps ProviderState
@@ -318,7 +280,7 @@ func generateNonce(n int) string {
 
 // GetMetrics returns the Traefik metrics.
 func (c *Client) GetMetrics(ctx context.Context) ([]*dto.MetricFamily, error) {
-	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "/metrics"))
+	endpoint, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "metrics"))
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +297,9 @@ func (c *Client) GetMetrics(ctx context.Context) ([]*dto.MetricFamily, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("expected status code %d; got %d", http.StatusOK, resp.StatusCode)
+		b, _ := io.ReadAll(resp.Body)
+
+		return nil, fmt.Errorf("expected status code %d; got %d: %s", http.StatusOK, resp.StatusCode, bytes.TrimSpace(b))
 	}
 
 	var m []*dto.MetricFamily
@@ -358,12 +322,7 @@ func (c *Client) GetMetrics(ctx context.Context) ([]*dto.MetricFamily, error) {
 func (c *Client) doReq(req *http.Request) (*http.Response, error) {
 	req.Host = hostname
 
-	rReq, err := retryablehttp.FromRequest(req)
-	if err != nil {
-		return nil, fmt.Errorf("retryable request: %w", err)
-	}
-
-	resp, err := c.httpClient.Do(rReq)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/traefik/hub-agent-traefik/pkg/edge"
 	"gopkg.in/square/go-jose.v2"
 )
 
@@ -27,42 +28,42 @@ const (
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name    string
-		jwtCfg  Config
+		jwtCfg  edge.ACPJWTConfig
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{
 			name:    "no keys",
-			jwtCfg:  Config{},
+			jwtCfg:  edge.ACPJWTConfig{},
 			wantErr: assert.Error,
 		},
 		{
 			name:    "signing secret",
-			jwtCfg:  Config{SigningSecret: "foobar"},
+			jwtCfg:  edge.ACPJWTConfig{SigningSecret: "foobar"},
 			wantErr: assert.NoError,
 		},
 		{
 			name:    "base64 signing secret",
-			jwtCfg:  Config{SigningSecret: base64.StdEncoding.EncodeToString([]byte("foobar")), SigningSecretBase64Encoded: true},
+			jwtCfg:  edge.ACPJWTConfig{SigningSecret: base64.StdEncoding.EncodeToString([]byte("foobar")), SigningSecretBase64Encoded: true},
 			wantErr: assert.NoError,
 		},
 		{
 			name:    "invlalid base64 signing secret",
-			jwtCfg:  Config{SigningSecret: "foobar", SigningSecretBase64Encoded: true},
+			jwtCfg:  edge.ACPJWTConfig{SigningSecret: "foobar", SigningSecretBase64Encoded: true},
 			wantErr: assert.Error,
 		},
 		{
 			name:    "public key",
-			jwtCfg:  Config{PublicKey: validPubKey},
+			jwtCfg:  edge.ACPJWTConfig{PublicKey: validPubKey},
 			wantErr: assert.NoError,
 		},
 		{
 			name:    "invalid public key",
-			jwtCfg:  Config{PublicKey: invalidPubKey},
+			jwtCfg:  edge.ACPJWTConfig{PublicKey: invalidPubKey},
 			wantErr: assert.Error,
 		},
 		{
 			name:    "JWK",
-			jwtCfg:  Config{JWKsURL: "http://example.com"},
+			jwtCfg:  edge.ACPJWTConfig{JWKsURL: "http://example.com"},
 			wantErr: assert.NoError,
 		},
 	}
@@ -79,7 +80,7 @@ func TestNew(t *testing.T) {
 func TestServeHTTP(t *testing.T) {
 	tests := []struct {
 		name   string
-		jwtCfg Config
+		jwtCfg edge.ACPJWTConfig
 
 		token          string
 		wantStatusCode int
@@ -87,25 +88,25 @@ func TestServeHTTP(t *testing.T) {
 	}{
 		{
 			name:           "token is missing",
-			jwtCfg:         Config{SigningSecret: "bibi"},
+			jwtCfg:         edge.ACPJWTConfig{SigningSecret: "bibi"},
 			token:          "",
 			wantStatusCode: http.StatusUnauthorized,
 		},
 		{
 			name:           "token is valid",
-			jwtCfg:         Config{SigningSecret: "bibi"},
+			jwtCfg:         edge.ACPJWTConfig{SigningSecret: "bibi"},
 			token:          validJWT,
 			wantStatusCode: http.StatusOK,
 		},
 		{
 			name:           "token is expired",
-			jwtCfg:         Config{SigningSecret: "bibi"},
+			jwtCfg:         edge.ACPJWTConfig{SigningSecret: "bibi"},
 			token:          expiredJWT,
 			wantStatusCode: http.StatusUnauthorized,
 		},
 		{
 			name: "token is not for required group",
-			jwtCfg: Config{
+			jwtCfg: edge.ACPJWTConfig{
 				SigningSecret: "bibi",
 				Claims:        "Equals(`grp`, `admin`)",
 			},
@@ -114,7 +115,7 @@ func TestServeHTTP(t *testing.T) {
 		},
 		{
 			name: "claims not equal",
-			jwtCfg: Config{
+			jwtCfg: edge.ACPJWTConfig{
 				SigningSecret: "bibi",
 				Claims:        "!Equals(`grp`, `admin`)",
 			},
@@ -123,7 +124,7 @@ func TestServeHTTP(t *testing.T) {
 		},
 		{
 			name: "claims not equal#2",
-			jwtCfg: Config{
+			jwtCfg: edge.ACPJWTConfig{
 				SigningSecret: "bibi",
 				Claims:        "!Equals(`name`, `John Doe`)",
 			},
@@ -132,7 +133,7 @@ func TestServeHTTP(t *testing.T) {
 		},
 		{
 			name: "group header is forwarded",
-			jwtCfg: Config{
+			jwtCfg: edge.ACPJWTConfig{
 				SigningSecret:  "bibi",
 				ForwardHeaders: map[string]string{"Group": "grp"},
 			},
@@ -142,13 +143,13 @@ func TestServeHTTP(t *testing.T) {
 		},
 		{
 			name:           "required `iss` property when JWKs URL is a path",
-			jwtCfg:         Config{JWKsURL: "/.well-known/jwks.json"},
+			jwtCfg:         edge.ACPJWTConfig{JWKsURL: "/.well-known/jwks.json"},
 			token:          validJWT,
 			wantStatusCode: http.StatusUnauthorized,
 		},
 		{
 			name: "nested header is forwarded (and header is canonicalized)",
-			jwtCfg: Config{
+			jwtCfg: edge.ACPJWTConfig{
 				SigningSecret:  "bibi",
 				ForwardHeaders: map[string]string{"nested-Property": "nested.property"},
 			},
@@ -371,20 +372,20 @@ MwIDAQAB
 func Test_JWTAuthNew(t *testing.T) {
 	tests := []struct {
 		name    string
-		static  Config
+		static  edge.ACPJWTConfig
 		keySet  *RemoteKeySet
 		wantErr assert.ErrorAssertionFunc
 	}{
 		{
 			name: "creates new JWT handler",
-			static: Config{
+			static: edge.ACPJWTConfig{
 				SigningSecret: "bibi",
 			},
 			wantErr: assert.NoError,
 		},
 		{
 			name: "creates new JWT handler with signing secret base64 encoded",
-			static: Config{
+			static: edge.ACPJWTConfig{
 				SigningSecret:              "YmliaQ==", // bibi
 				SigningSecretBase64Encoded: true,
 			},
@@ -392,26 +393,26 @@ func Test_JWTAuthNew(t *testing.T) {
 		},
 		{
 			name: "creates new JWT handler",
-			static: Config{
+			static: edge.ACPJWTConfig{
 				PublicKey: validPubKey,
 			},
 			wantErr: assert.NoError,
 		},
 		{
 			name:    "raises error if no signinSecret or publicKey",
-			static:  Config{},
+			static:  edge.ACPJWTConfig{},
 			wantErr: assert.Error,
 		},
 		{
 			name: "raises error if invalid public key",
-			static: Config{
+			static: edge.ACPJWTConfig{
 				PublicKey: invalidPubKey,
 			},
 			wantErr: assert.Error,
 		},
 		{
 			name: "raises error if claim condition is invalid",
-			static: Config{
+			static: edge.ACPJWTConfig{
 				SigningSecret: "bibi",
 				Claims:        "Equals(",
 			},

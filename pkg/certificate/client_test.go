@@ -1,11 +1,11 @@
 package certificate
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -13,105 +13,80 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_Obtain(t *testing.T) {
-	now := time.Now().UTC().Truncate(time.Millisecond)
+func setup(t *testing.T) (*Client, *http.ServeMux) {
+	t.Helper()
+
+	mux := http.NewServeMux()
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	c, err := NewClient(srv.URL, "token")
+	require.NoError(t, err)
+	c.httpClient = srv.Client()
+
+	return c, mux
+}
+
+func TestClient_GetCertificate(t *testing.T) {
 	tests := []struct {
 		desc            string
-		statusCode      int
-		wantCert        Certificate
-		wantSentinelErr error
-		wantTypedErr    error
+		wantCertificate Certificate
+		wantStatusCode  int
+		wantError       require.ErrorAssertionFunc
 	}{
 		{
-			desc:       "obtain certificate succeed",
-			statusCode: http.StatusOK,
-			wantCert: Certificate{
-				Domains:     []string{"test.localhost"},
+			desc: "get certificate",
+			wantCertificate: Certificate{
+				Domains:     []string{"example.com"},
+				NotBefore:   time.Date(2022, 5, 11, 15, 51, 0, 0, time.UTC),
+				NotAfter:    time.Date(2022, 5, 21, 15, 51, 0, 0, time.UTC),
 				Certificate: []byte("cert"),
 				PrivateKey:  []byte("key"),
-				NotBefore:   now,
-				NotAfter:    now.Add(24 * time.Hour),
 			},
+			wantStatusCode: http.StatusOK,
+			wantError:      require.NoError,
 		},
 		{
-			desc:            "obtain pending certificate",
-			statusCode:      http.StatusAccepted,
-			wantCert:        Certificate{},
-			wantSentinelErr: ErrCertIssuancePending,
-		},
-		{
-			desc:       "obtain certificate unexpected error",
-			statusCode: http.StatusTeapot,
-			wantCert:   Certificate{},
-			wantTypedErr: &APIError{
-				StatusCode: http.StatusTeapot,
-				Message:    "error",
+			desc:           "internal server error",
+			wantStatusCode: http.StatusInternalServerError,
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorAs(t, err, &APIError{})
 			},
 		},
 	}
 
 	for _, test := range tests {
 		test := test
-
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
-			var (
-				callCount   int
-				callDomains []string
-			)
-			mux := http.NewServeMux()
-			mux.HandleFunc("/certificates", func(rw http.ResponseWriter, req *http.Request) {
-				callCount++
-				callDomains = strings.Split(req.URL.Query().Get("domains"), ",")
+			var count int
+
+			c, mux := setup(t)
+
+			mux.HandleFunc("/wildcard-certificate", func(rw http.ResponseWriter, req *http.Request) {
+				count++
 
 				if req.Method != http.MethodGet {
-					http.Error(rw, fmt.Sprintf("unsupported method: %s", req.Method), http.StatusMethodNotAllowed)
+					http.Error(rw, fmt.Sprintf("unsupported to method: %s", req.Method), http.StatusMethodNotAllowed)
 					return
 				}
 
-				if req.Header.Get("Authorization") != "Bearer 123" {
-					http.Error(rw, "Invalid token", http.StatusUnauthorized)
+				rw.WriteHeader(test.wantStatusCode)
+
+				err := json.NewEncoder(rw).Encode(test.wantCertificate)
+				if err != nil {
+					http.Error(rw, err.Error(), http.StatusInternalServerError)
 					return
-				}
-
-				rw.WriteHeader(test.statusCode)
-
-				switch test.statusCode {
-				case http.StatusAccepted:
-				case http.StatusOK:
-					_ = json.NewEncoder(rw).Encode(test.wantCert)
-
-				default:
-					_ = json.NewEncoder(rw).Encode(APIError{Message: "error"})
 				}
 			})
 
-			srv := httptest.NewServer(mux)
-			t.Cleanup(srv.Close)
+			gotCertificate, err := c.GetCertificate(context.Background())
+			test.wantError(t, err)
 
-			c, err := NewClient(srv.URL, "123")
-			require.NoError(t, err)
-			c.httpClient = srv.Client()
-
-			wantDomains := []string{
-				"test.localhost",
-				"test2.localhost",
-			}
-
-			gotCert, err := c.Obtain(wantDomains)
-			switch {
-			case test.wantSentinelErr != nil:
-				require.ErrorIs(t, err, test.wantSentinelErr)
-			case test.wantTypedErr != nil:
-				require.ErrorAs(t, err, test.wantTypedErr)
-			default:
-				require.NoError(t, err)
-			}
-
-			assert.Equal(t, 1, callCount)
-			assert.Equal(t, wantDomains, callDomains)
-			assert.Equal(t, test.wantCert, gotCert)
+			require.Equal(t, 1, count)
+			assert.Equal(t, test.wantCertificate, gotCertificate)
 		})
 	}
 }

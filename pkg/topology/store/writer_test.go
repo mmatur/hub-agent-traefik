@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/traefik/hub-agent-traefik/pkg/topology/state"
+	"github.com/traefik/hub-agent-traefik/pkg/topology"
 )
 
 const (
@@ -41,7 +41,7 @@ func TestWrite_GitNoChanges(t *testing.T) {
 		},
 	}
 
-	err := s.Write(context.Background(), &state.Cluster{ID: "myclusterID"})
+	err := s.Write(context.Background(), &topology.Cluster{ID: "myclusterID"})
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, commitCallCount)
@@ -62,7 +62,7 @@ func TestWrite_GitChanges(t *testing.T) {
 		},
 	}
 
-	err := s.Write(context.Background(), &state.Cluster{ID: "myclusterID"})
+	err := s.Write(context.Background(), &topology.Cluster{ID: "myclusterID"})
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, pushCallCount)
@@ -71,22 +71,22 @@ func TestWrite_GitChanges(t *testing.T) {
 func TestWrite_IngressRoutes(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	testIngressRoute := &state.IngressRoute{
-		ResourceMeta: state.ResourceMeta{
+	testIngressRoute := &topology.IngressRoute{
+		ResourceMeta: topology.ResourceMeta{
 			Kind: "kind",
 			Name: "name",
 		},
-		IngressMeta: state.IngressMeta{
+		IngressMeta: topology.IngressMeta{
 			ClusterID:      "cluster-id",
 			ControllerType: "controller",
 			Annotations: map[string]string{
 				"foo": "bar",
 			},
 		},
-		Routes: []state.Route{
+		Routes: []topology.Route{
 			{
 				Match: "Host(`foo.com`)",
-				Services: []state.RouteService{
+				Services: []topology.RouteService{
 					{
 						Name: "service",
 					},
@@ -107,8 +107,8 @@ func TestWrite_IngressRoutes(t *testing.T) {
 		},
 	}
 
-	err := s.Write(context.Background(), &state.Cluster{
-		IngressRoutes: map[string]*state.IngressRoute{
+	err := s.Write(context.Background(), &topology.Cluster{
+		IngressRoutes: map[string]*topology.IngressRoute{
 			"name@namespace.kind.group": testIngressRoute,
 		},
 	})
@@ -118,7 +118,7 @@ func TestWrite_IngressRoutes(t *testing.T) {
 
 	got := readTopology(t, tmpDir)
 
-	var gotIngRoute state.IngressRoute
+	var gotIngRoute topology.IngressRoute
 	err = json.Unmarshal(got["/Ingresses/name@namespace.kind.group.json"], &gotIngRoute)
 	require.NoError(t, err)
 
@@ -128,7 +128,7 @@ func TestWrite_IngressRoutes(t *testing.T) {
 func TestWrite_IngressControllers(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	testController := &state.IngressController{
+	testController := &topology.IngressController{
 		Name: "myctrl",
 		Kind: "Multiplatform",
 		Type: "traefik",
@@ -145,8 +145,8 @@ func TestWrite_IngressControllers(t *testing.T) {
 		},
 	}
 
-	err := s.Write(context.Background(), &state.Cluster{
-		IngressControllers: map[string]*state.IngressController{
+	err := s.Write(context.Background(), &topology.Cluster{
+		IngressControllers: map[string]*topology.IngressController{
 			"myctrl@myns": testController,
 		},
 	})
@@ -156,7 +156,7 @@ func TestWrite_IngressControllers(t *testing.T) {
 
 	got := readTopology(t, tmpDir)
 
-	var gotCtrl state.IngressController
+	var gotCtrl topology.IngressController
 	err = json.Unmarshal(got["/IngressControllers/myctrl@myns.json"], &gotCtrl)
 	require.NoError(t, err)
 
@@ -166,7 +166,7 @@ func TestWrite_IngressControllers(t *testing.T) {
 func TestWrite_Overview(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	testOverview := state.Overview{
+	testOverview := topology.Overview{
 		IngressCount:           2,
 		ServiceCount:           1,
 		IngressControllerTypes: []string{"traefik"},
@@ -183,14 +183,14 @@ func TestWrite_Overview(t *testing.T) {
 		},
 	}
 
-	err := s.Write(context.Background(), &state.Cluster{Overview: testOverview})
+	err := s.Write(context.Background(), &topology.Cluster{Overview: testOverview})
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, pushCallCount)
 
 	got := readTopology(t, tmpDir)
 
-	var gotOverview state.Overview
+	var gotOverview topology.Overview
 	err = json.Unmarshal(got["/Overview.json"], &gotOverview)
 	require.NoError(t, err)
 
