@@ -101,28 +101,10 @@ func (c *Client) Link(ctx context.Context) (clusterID string, err error) {
 		return "", fmt.Errorf("build request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.token)
-
-	resp, err := c.httpClient.Do(req)
+	var linkResp linkClusterResp
+	err = c.do(req, &linkResp)
 	if err != nil {
 		return "", err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		all, _ := io.ReadAll(resp.Body)
-
-		apiErr := APIError{StatusCode: resp.StatusCode}
-		if err = json.Unmarshal(all, &apiErr); err != nil {
-			apiErr.Message = string(all)
-		}
-
-		return "", apiErr
-	}
-
-	var linkResp linkClusterResp
-	if err = json.NewDecoder(resp.Body).Decode(&linkResp); err != nil {
-		return "", fmt.Errorf("decode link agent resp: %w", err)
 	}
 
 	return linkResp.ClusterID, nil
@@ -140,28 +122,10 @@ func (c *Client) GetConfig(ctx context.Context) (Config, error) {
 		return Config{}, fmt.Errorf("build request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.token)
-
-	resp, err := c.httpClient.Do(req)
+	var cfg Config
+	err = c.do(req, &cfg)
 	if err != nil {
 		return Config{}, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		all, _ := io.ReadAll(resp.Body)
-
-		apiErr := APIError{StatusCode: resp.StatusCode}
-		if err = json.Unmarshal(all, &apiErr); err != nil {
-			apiErr.Message = string(all)
-		}
-
-		return Config{}, apiErr
-	}
-
-	var cfg Config
-	if err = json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
-		return Config{}, fmt.Errorf("decode config: %w", err)
 	}
 
 	return cfg, nil
@@ -179,6 +143,10 @@ func (c *Client) Ping(ctx context.Context) error {
 		return fmt.Errorf("build request: %w", err)
 	}
 
+	return c.do(req, nil)
+}
+
+func (c Client) do(req *http.Request, result interface{}) error {
 	req.Header.Set("Authorization", "Bearer "+c.token)
 
 	resp, err := c.httpClient.Do(req)
@@ -187,7 +155,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode/100 != 2 {
 		all, _ := io.ReadAll(resp.Body)
 
 		apiErr := APIError{StatusCode: resp.StatusCode}
@@ -196,6 +164,12 @@ func (c *Client) Ping(ctx context.Context) error {
 		}
 
 		return apiErr
+	}
+
+	if result != nil {
+		if err = json.NewDecoder(resp.Body).Decode(result); err != nil {
+			return fmt.Errorf("decode config: %w", err)
+		}
 	}
 
 	return nil

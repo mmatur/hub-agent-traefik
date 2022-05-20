@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -69,27 +70,40 @@ func (c *Client) ListClusterTunnelEndpoints(ctx context.Context) ([]Endpoint, er
 		return nil, fmt.Errorf("build request: %w", err)
 	}
 
+	var tunnels []Endpoint
+	err = c.do(req, &tunnels)
+	if err != nil {
+		return nil, err
+	}
+
+	return tunnels, nil
+}
+
+func (c Client) do(req *http.Request, result interface{}) error {
 	req.Header.Set("Authorization", "Bearer "+c.token)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode/100 != 2 {
+		all, _ := io.ReadAll(resp.Body)
+
 		apiErr := APIError{StatusCode: resp.StatusCode}
-		if err = json.NewDecoder(resp.Body).Decode(&apiErr); err != nil {
-			return nil, fmt.Errorf("failed with code %d: decode response: %w", resp.StatusCode, err)
+		if err = json.Unmarshal(all, &apiErr); err != nil {
+			apiErr.Message = string(all)
 		}
 
-		return nil, apiErr
+		return apiErr
 	}
 
-	var tunnels []Endpoint
-	if err = json.NewDecoder(resp.Body).Decode(&tunnels); err != nil {
-		return nil, fmt.Errorf("decode obtain resp: %w", err)
+	if result != nil {
+		if err = json.NewDecoder(resp.Body).Decode(result); err != nil {
+			return fmt.Errorf("decode config: %w", err)
+		}
 	}
 
-	return tunnels, nil
+	return nil
 }

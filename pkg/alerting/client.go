@@ -11,6 +11,23 @@ import (
 	"path"
 )
 
+// APIError represents an error returned by the API.
+type APIError struct {
+	StatusCode int
+	Message    string `json:"error"`
+}
+
+func (a APIError) Error() string {
+	return fmt.Sprintf("failed with code %d: %s", a.StatusCode, a.Message)
+}
+
+type descriptor struct {
+	ID      int    `json:"id"`
+	RuleID  string `json:"ruleId"`
+	Ingress string `json:"ingress"`
+	Service string `json:"service,omitempty"`
+}
+
 // Client for the alerting service.
 type Client struct {
 	baseURL    *url.URL
@@ -45,36 +62,13 @@ func (c *Client) GetRules(ctx context.Context) ([]Rule, error) {
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 
-	c.setAuthHeader(req)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("getting alerting rules: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response body: %w", err)
-	}
-
-	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("getting alerting rules got %d: %s", resp.StatusCode, string(body))
-	}
-
 	var rules []Rule
-	if err = json.Unmarshal(body, &rules); err != nil {
-		return nil, fmt.Errorf("unmarshaling response: %w: %s", err, string(body))
+	err = c.do(req, &rules)
+	if err != nil {
+		return nil, err
 	}
 
 	return rules, nil
-}
-
-type descriptor struct {
-	ID      int    `json:"id"`
-	RuleID  string `json:"ruleId"`
-	Ingress string `json:"ingress"`
-	Service string `json:"service,omitempty"`
 }
 
 // PreflightAlerts sends alert descriptors to the server and returns which alerts to send.
@@ -103,22 +97,8 @@ func (c *Client) PreflightAlerts(ctx context.Context, data []Alert) ([]Alert, er
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 
-	c.setAuthHeader(req)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("sending alerts: %w", err)
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode/100 != 2 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("sending alerts got %d: %s", resp.StatusCode, string(body))
-	}
-
 	var pos []int
-	err = json.NewDecoder(resp.Body).Decode(&pos)
+	err = c.do(req, &pos)
 	if err != nil {
 		return nil, err
 	}
@@ -154,23 +134,34 @@ func (c *Client) SendAlerts(ctx context.Context, data []Alert) error {
 		return fmt.Errorf("creating request: %w", err)
 	}
 
-	c.setAuthHeader(req)
+	return c.do(req, nil)
+}
+
+func (c Client) do(req *http.Request, result interface{}) error {
+	req.Header.Set("Authorization", "Bearer "+c.token)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending alerts: %w", err)
+		return err
 	}
-
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode/100 != 2 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("sending alerts got %d: %s", resp.StatusCode, string(body))
+		all, _ := io.ReadAll(resp.Body)
+
+		apiErr := APIError{StatusCode: resp.StatusCode}
+		if err = json.Unmarshal(all, &apiErr); err != nil {
+			apiErr.Message = string(all)
+		}
+
+		return apiErr
+	}
+
+	if result != nil {
+		if err = json.NewDecoder(resp.Body).Decode(result); err != nil {
+			return fmt.Errorf("decode config: %w", err)
+		}
 	}
 
 	return nil
-}
-
-func (c *Client) setAuthHeader(req *http.Request) {
-	req.Header.Set("Authorization", "Bearer "+c.token)
 }

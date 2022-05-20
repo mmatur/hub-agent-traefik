@@ -73,15 +73,25 @@ func (c *Client) GetCertificate(ctx context.Context) (Certificate, error) {
 		return Certificate{}, fmt.Errorf("build request: %w", err)
 	}
 
+	var cert Certificate
+	err = c.do(req, &cert)
+	if err != nil {
+		return Certificate{}, err
+	}
+
+	return cert, nil
+}
+
+func (c Client) do(req *http.Request, result interface{}) error {
 	req.Header.Set("Authorization", "Bearer "+c.token)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return Certificate{}, err
+		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode/100 != 2 {
 		all, _ := io.ReadAll(resp.Body)
 
 		apiErr := APIError{StatusCode: resp.StatusCode}
@@ -89,13 +99,14 @@ func (c *Client) GetCertificate(ctx context.Context) (Certificate, error) {
 			apiErr.Message = string(all)
 		}
 
-		return Certificate{}, apiErr
+		return apiErr
 	}
 
-	var cert Certificate
-	if err = json.NewDecoder(resp.Body).Decode(&cert); err != nil {
-		return Certificate{}, fmt.Errorf("decode obtain resp: %w", err)
+	if result != nil {
+		if err = json.NewDecoder(resp.Body).Decode(result); err != nil {
+			return fmt.Errorf("decode config: %w", err)
+		}
 	}
 
-	return cert, nil
+	return nil
 }

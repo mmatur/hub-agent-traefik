@@ -55,27 +55,10 @@ func (c *Client) GetPreviousData(ctx context.Context, startup bool) (map[string]
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 
-	c.setAuthHeader(req)
-	req.Header.Set("Accept", "avro/binary;v2")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("getting metrics previous data: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading response body: %w", err)
-	}
-
-	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("getting metrics previous data got %d: %s", resp.StatusCode, string(body))
-	}
-
 	data := map[string][]DataPointGroup{}
-	if err = avro.Unmarshal(c.metricsSchema, body, &data); err != nil {
-		return nil, fmt.Errorf("unmarshalling response: %w: %s", err, string(body))
+	err = c.do(req, &data)
+	if err != nil {
+		return nil, err
 	}
 
 	return data, nil
@@ -97,24 +80,36 @@ func (c *Client) Send(ctx context.Context, data map[string][]DataPointGroup) err
 		return fmt.Errorf("creating request: %w", err)
 	}
 
-	c.setAuthHeader(req)
+	return c.do(req, nil)
+}
+
+func (c Client) do(req *http.Request, result interface{}) error {
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Accept", "avro/binary;v2")
 	req.Header.Set("Content-Type", "avro/binary;v2")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending metrics: %w", err)
+		return err
 	}
-
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode/100 != 2 {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("sending metrics got %d: %s", resp.StatusCode, string(body))
+		all, _ := io.ReadAll(resp.Body)
+
+		return fmt.Errorf("%d: %s", resp.StatusCode, string(all))
+	}
+
+	if result != nil {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("reading response body: %w", err)
+		}
+
+		if err = avro.Unmarshal(c.metricsSchema, body, &result); err != nil {
+			return fmt.Errorf("unmarshalling response: %w: %s", err, string(body))
+		}
 	}
 
 	return nil
-}
-
-func (c *Client) setAuthHeader(req *http.Request) {
-	req.Header.Set("Authorization", "Bearer "+c.token)
 }
