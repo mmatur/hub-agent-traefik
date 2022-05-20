@@ -24,11 +24,11 @@ const (
 
 // Docker is a Docker client.
 type Docker struct {
-	client *client.Client
+	client client.APIClient
 }
 
 // NewDocker creates Docker.
-func NewDocker(dockerClient *client.Client) *Docker {
+func NewDocker(dockerClient client.APIClient) *Docker {
 	return &Docker{client: dockerClient}
 }
 
@@ -49,6 +49,8 @@ func (d Docker) Watch(ctx context.Context, clusterID string, fn func(map[string]
 
 		fn(services)
 	}
+
+	startStopHandle(eventtypes.Message{})
 
 	eventsc, errc := d.client.Events(ctx, options)
 	for {
@@ -96,10 +98,15 @@ func (d Docker) getServices(ctx context.Context, clusterID string) (map[string]*
 
 		name := getServiceName(container)
 
+		info := d.getContainerInfo(ctx, containerInspect)
+		if info == nil {
+			continue
+		}
+
 		services[name] = &topology.Service{
 			Name:      name,
 			ClusterID: clusterID,
-			IPs:       d.getIPs(ctx, containerInspect),
+			Container: info,
 			Ports:     ports,
 		}
 	}
@@ -107,17 +114,9 @@ func (d Docker) getServices(ctx context.Context, clusterID string) (map[string]*
 	return services, nil
 }
 
-func (d Docker) getIPs(ctx context.Context, container types.ContainerJSON) []string {
+func (d Docker) getContainerInfo(ctx context.Context, container types.ContainerJSON) *topology.Container {
 	if container.HostConfig.NetworkMode.IsHost() {
-		if container.Node != nil && container.Node.IPAddress != "" {
-			return []string{container.Node.IPAddress}
-		}
-
-		if host, err := net.LookupHost("host.docker.internal"); err == nil {
-			return []string{host[0]}
-		}
-
-		return []string{"127.0.0.1"}
+		return &topology.Container{Name: container.Name, Networks: []string{"HOST"}}
 	}
 
 	if container.HostConfig.NetworkMode.IsContainer() {
@@ -133,22 +132,20 @@ func (d Docker) getIPs(ctx context.Context, container types.ContainerJSON) []str
 			return nil
 		}
 
-		return getNetworkIPs(containerInspect)
+		container = containerInspect
 	}
 
-	return getNetworkIPs(container)
-}
+	if container.NetworkSettings != nil && len(container.NetworkSettings.Networks) > 0 {
+		c := &topology.Container{Name: container.Name}
 
-func getNetworkIPs(container types.ContainerJSON) []string {
-	var ips []string
-
-	if container.NetworkSettings != nil {
-		for network, settings := range container.NetworkSettings.Networks {
-			ips = append(ips, network+":"+settings.IPAddress)
+		for network := range container.NetworkSettings.Networks {
+			c.Networks = append(c.Networks, network)
 		}
+
+		return c
 	}
 
-	return ips
+	return nil
 }
 
 func getServiceName(container types.Container) string {
@@ -170,4 +167,60 @@ func normalize(name string) string {
 	}
 	// get function
 	return strings.Join(strings.FieldsFunc(name, fargs), "-")
+}
+
+// GetIP gets container IP.
+func (d Docker) GetIP(ctx context.Context, containerName, network string) (string, error) {
+	container, err := d.client.ContainerInspect(ctx, containerName)
+	if err != nil {
+		return "", err
+	}
+
+	if container.HostConfig.NetworkMode.IsHost() {
+		if network != "HOST" {
+			return "", fmt.Errorf("the network mode %s is different from HOST", network)
+		}
+
+		if container.Node != nil && container.Node.IPAddress != "" {
+			return container.Node.IPAddress, nil
+		}
+
+		if host, err := net.LookupHost("host.docker.internal"); err == nil {
+			return host[0], nil
+		}
+
+		return "127.0.0.1", nil
+	}
+
+	if container.HostConfig.NetworkMode.IsContainer() {
+		connectedContainer := container.HostConfig.NetworkMode.ConnectedContainer()
+		containerInspect, err := d.client.ContainerInspect(ctx, connectedContainer)
+		if err != nil {
+			log.Error().
+				Str("container_name", container.Name).
+				Str("connected_container", connectedContainer).
+				Err(err).
+				Msg("Unable to get IP address")
+
+			return "", nil
+		}
+
+		return getContainerIP(containerInspect, network)
+	}
+
+	return getContainerIP(container, network)
+}
+
+func getContainerIP(container types.ContainerJSON, network string) (string, error) {
+	if container.NetworkSettings == nil {
+		return "", fmt.Errorf("%s: no network settings", network)
+	}
+
+	for name, settings := range container.NetworkSettings.Networks {
+		if network == name {
+			return settings.IPAddress, nil
+		}
+	}
+
+	return "", fmt.Errorf("%s: no IP address", network)
 }

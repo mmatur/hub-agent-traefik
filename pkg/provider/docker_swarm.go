@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strconv"
 	"time"
 
 	dockertypes "github.com/docker/docker/api/types"
@@ -18,12 +17,12 @@ import (
 
 // DockerSwarm is a DockerSwarm client.
 type DockerSwarm struct {
-	client   *client.Client
+	client   client.APIClient
 	interval time.Duration
 }
 
 // NewDockerSwarm creates DockerSwarm.
-func NewDockerSwarm(dockerClient *client.Client, interval time.Duration) *DockerSwarm {
+func NewDockerSwarm(dockerClient client.APIClient, interval time.Duration) *DockerSwarm {
 	return &DockerSwarm{client: dockerClient, interval: interval}
 }
 
@@ -32,6 +31,11 @@ func (d DockerSwarm) Watch(ctx context.Context, clusterID string, fn func(map[st
 	ticker := time.NewTicker(d.interval)
 
 	log.Info().Str("cluster_id", clusterID).Msg("watch")
+
+	services, err := d.getServices(ctx, clusterID)
+	if err == nil {
+		fn(services)
+	}
 
 	go func(ctx context.Context) {
 		for {
@@ -87,114 +91,61 @@ func (d DockerSwarm) getServices(ctx context.Context, clusterID string) (map[str
 			svc.Ports = append(svc.Ports, int(port.TargetPort))
 		}
 
-		svc.IPs = d.getServiceIPs(loggerSvc.WithContext(ctx), service, networkMap)
+		serviceInfo := d.getServiceInfo(loggerSvc.WithContext(ctx), service, networkMap)
+		if serviceInfo == nil {
+			continue
+		}
 
+		svc.Container = serviceInfo
 		services[svc.Name] = svc
-
-		serviceIDFilter := filters.NewArgs()
-		serviceIDFilter.Add("service", service.ID)
-		serviceIDFilter.Add("desired-state", "running")
-		tasks, err := d.client.TaskList(ctx, dockertypes.TaskListOptions{Filters: serviceIDFilter})
-		if err != nil {
-			return nil, fmt.Errorf("list tasks: %w", err)
-		}
-
-		for _, task := range tasks {
-			if task.Status.State != swarmtypes.TaskStateRunning {
-				continue
-			}
-
-			tService := &topology.Service{
-				Name:      svc.Name + "." + strconv.Itoa(task.Slot),
-				ClusterID: clusterID,
-				Ports:     svc.Ports,
-			}
-
-			if service.Spec.Mode.Global != nil {
-				tService.Name = svc.Name + "." + task.ID
-			}
-
-			loggerTsk := log.With().Str("cluster_id", clusterID).
-				Str("service_id", service.ID).
-				Str("service_name", tService.Name).
-				Str("task_id", task.ID).
-				Logger()
-
-			if task.NetworksAttachments != nil {
-				tService.IPs = d.getTaskIPs(loggerTsk.WithContext(ctx), task, networkMap)
-
-				services[tService.Name] = tService
-			}
-		}
 	}
 
 	return services, nil
 }
 
-func (d DockerSwarm) getTaskIPs(ctx context.Context, task swarmtypes.Task, networkMap map[string]*dockertypes.NetworkResource) []string {
+func (d DockerSwarm) getServiceInfo(ctx context.Context, service swarmtypes.Service, networkMap map[string]*dockertypes.NetworkResource) *topology.Container {
 	logger := log.Ctx(ctx)
 
-	var ips []string
-	for _, virtualIP := range task.NetworksAttachments {
-		networkService, present := networkMap[virtualIP.Network.ID]
-		if !present {
-			continue
-		}
-
-		if networkService.Ingress {
-			continue
-		}
-
-		if len(virtualIP.Addresses) == 0 {
-			logger.Debug().Str("network_id", virtualIP.Network.ID).Msg("No IP addresses found for network")
-			continue
-		}
-
-		// Not sure about this next loop - when would a task have multiple IP's for the same network?
-		for _, addr := range virtualIP.Addresses {
-			ip, _, _ := net.ParseCIDR(addr)
-
-			ips = append(ips, networkService.Name+":"+ip.String())
-		}
+	if service.Spec.EndpointSpec == nil {
+		return nil
 	}
 
-	return ips
-}
+	switch service.Spec.EndpointSpec.Mode {
+	case swarmtypes.ResolutionModeDNSRR:
+		logger.Debug().Msgf("Ignored %s endpoint-mode not supported", swarmtypes.ResolutionModeDNSRR)
+	case swarmtypes.ResolutionModeVIP:
+		c := &topology.Container{Name: service.Spec.Name}
 
-func (d DockerSwarm) getServiceIPs(ctx context.Context, service swarmtypes.Service, networkMap map[string]*dockertypes.NetworkResource) []string {
-	logger := log.Ctx(ctx)
-
-	var ips []string
-	if service.Spec.EndpointSpec != nil {
-		switch service.Spec.EndpointSpec.Mode {
-		case swarmtypes.ResolutionModeDNSRR:
-			logger.Debug().Msgf("Ignored %s endpoint-mode not supported", swarmtypes.ResolutionModeDNSRR)
-		case swarmtypes.ResolutionModeVIP:
-			for _, virtualIP := range service.Endpoint.VirtualIPs {
-				networkService := networkMap[virtualIP.NetworkID]
-
-				if networkService.Ingress {
-					continue
-				}
-
-				if networkService == nil {
-					logger.Debug().Str("network_id", virtualIP.NetworkID).Msg("Network not found")
-					continue
-				}
-
-				if virtualIP.Addr == "" {
-					logger.Debug().Str("network_id", virtualIP.NetworkID).Msg("No virtual IPs found in network")
-					continue
-				}
-
-				ip, _, _ := net.ParseCIDR(virtualIP.Addr)
-
-				ips = append(ips, networkService.Name+":"+ip.String())
+		for _, virtualIP := range service.Endpoint.VirtualIPs {
+			networkService := networkMap[virtualIP.NetworkID]
+			if networkService == nil {
+				logger.Debug().Str("network_id", virtualIP.NetworkID).Msg("Network not found")
+				continue
 			}
+
+			if networkService.Ingress {
+				continue
+			}
+
+			if virtualIP.Addr == "" {
+				logger.Debug().Str("network_id", virtualIP.NetworkID).Msg("No virtual IPs found in network")
+				continue
+			}
+
+			ip, _, err := net.ParseCIDR(virtualIP.Addr)
+			if err != nil || ip == nil {
+				continue
+			}
+
+			c.Networks = append(c.Networks, networkService.Name)
+		}
+
+		if len(c.Networks) > 0 {
+			return c
 		}
 	}
 
-	return ips
+	return nil
 }
 
 func (d DockerSwarm) getNetworks(ctx context.Context) (map[string]*dockertypes.NetworkResource, error) {
@@ -223,4 +174,67 @@ func (d DockerSwarm) getNetworks(ctx context.Context) (map[string]*dockertypes.N
 	}
 
 	return networkMap, nil
+}
+
+// GetIP gets service IP.
+func (d DockerSwarm) GetIP(ctx context.Context, serviceName, network string) (string, error) {
+	logger := log.Ctx(ctx)
+
+	service, _, err := d.client.ServiceInspectWithRaw(ctx, serviceName, dockertypes.ServiceInspectOptions{})
+	if err != nil {
+		return "", fmt.Errorf("service inspect: %w", err)
+	}
+
+	networkMap, err := d.getNetworks(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get networks: %w", err)
+	}
+
+	if service.Spec.EndpointSpec == nil {
+		return "", nil
+	}
+
+	switch service.Spec.EndpointSpec.Mode {
+	case swarmtypes.ResolutionModeDNSRR:
+		logger.Debug().Msgf("Ignored %s endpoint-mode not supported", swarmtypes.ResolutionModeDNSRR)
+	case swarmtypes.ResolutionModeVIP:
+		return getServiceIP(ctx, service, networkMap, network), nil
+	}
+
+	return "", nil
+}
+
+func getServiceIP(ctx context.Context, service swarmtypes.Service, networkMap map[string]*dockertypes.NetworkResource, network string) string {
+	logger := log.Ctx(ctx)
+
+	for _, virtualIP := range service.Endpoint.VirtualIPs {
+		networkService := networkMap[virtualIP.NetworkID]
+
+		if networkService == nil {
+			logger.Debug().Str("network_id", virtualIP.NetworkID).Msg("Network not found")
+			continue
+		}
+
+		if networkService.Ingress {
+			continue
+		}
+
+		if virtualIP.Addr == "" {
+			logger.Debug().Str("network_id", virtualIP.NetworkID).Msg("No virtual IPs found in network")
+			continue
+		}
+
+		if networkService.Name != network {
+			continue
+		}
+
+		ip, _, err := net.ParseCIDR(virtualIP.Addr)
+		if err != nil || ip == nil {
+			continue
+		}
+
+		return ip.String()
+	}
+
+	return ""
 }

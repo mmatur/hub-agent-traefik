@@ -13,8 +13,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/traefik/hub-agent-traefik/pkg/certificate"
 	"github.com/traefik/hub-agent-traefik/pkg/edge"
+	"github.com/traefik/hub-agent-traefik/pkg/topology"
 	"github.com/traefik/hub-agent-traefik/pkg/traefik"
 )
+
+type providerMock struct{}
+
+func (m providerMock) Watch(ctx context.Context, clusterID string, fn func(map[string]*topology.Service)) error {
+	return nil
+}
+
+func (m providerMock) GetIP(ctx context.Context, containerName, network string) (string, error) {
+	return "127.0.0.1", nil
+}
 
 func TestEdgeUpdater_Update(t *testing.T) {
 	certClient := setupCertClient(t)
@@ -29,10 +40,10 @@ func TestEdgeUpdater_Update(t *testing.T) {
 			Domain:      "https://majestic-beaver-123.traefik-hub.io",
 			Version:     "version",
 			Service: edge.Service{
-				ID:   "service-id",
-				Name: "service-name",
-				IP:   "network:127.0.0.1",
-				Port: 8080,
+				ID:      "service-id",
+				Name:    "service-name",
+				Network: "foo_network",
+				Port:    8080,
 			},
 			ACP: &edge.ACPInfo{
 				Name: "acp-name",
@@ -60,7 +71,7 @@ func TestEdgeUpdater_Update(t *testing.T) {
 		},
 	}
 
-	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, "127.0.0.1", 2)
+	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, providerMock{}, "127.0.0.1", 2)
 	err := edgeUpdater.Update(context.Background(), ingresses, acps)
 	require.NoError(t, err)
 }

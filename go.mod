@@ -4,7 +4,9 @@ go 1.17
 
 require (
 	github.com/abbot/go-http-auth v0.4.0
+	github.com/docker/cli v20.10.16+incompatible
 	github.com/docker/docker v20.10.15+incompatible
+	github.com/docker/go-connections v0.4.0
 	github.com/ettle/strcase v0.1.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/gorilla/websocket v1.4.2
@@ -45,7 +47,6 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/gogo/protobuf v1.1.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.1 // indirect

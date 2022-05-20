@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -26,16 +25,18 @@ const defaultHubTunnelEntrypoint = "traefikhub-tunl"
 type EdgeUpdater struct {
 	certClient    *certificate.Client
 	traefikClient *traefik.Client
+	provider      ProviderWatcher
 
 	authServerReachableAddr string
 	maxSecuredRoute         int
 }
 
 // NewEdgeUpdater creates EdgeUpdater.
-func NewEdgeUpdater(certClient *certificate.Client, traefikClient *traefik.Client, authServerReachableAddr string, maxSecuredRoute int) *EdgeUpdater {
+func NewEdgeUpdater(certClient *certificate.Client, traefikClient *traefik.Client, provider ProviderWatcher, authServerReachableAddr string, maxSecuredRoute int) *EdgeUpdater {
 	return &EdgeUpdater{
 		certClient:              certClient,
 		traefikClient:           traefikClient,
+		provider:                provider,
 		authServerReachableAddr: authServerReachableAddr,
 		maxSecuredRoute:         maxSecuredRoute,
 	}
@@ -78,24 +79,21 @@ func (e EdgeUpdater) appendEdgeToTraefikCfg(ctx context.Context, cfg *dynamic.Co
 	})
 
 	for _, ingress := range edgeIngresses {
-		// Split the network name and the IP.
-		index := strings.Index(ingress.Service.IP, ":")
+		logger := log.With().Str("workspace_id", ingress.WorkspaceID).
+			Str("cluster_id", ingress.ClusterID).
+			Str("edge_ingress_id", ingress.ID).
+			Str("service_name", ingress.Service.Name).
+			Str("service_network", ingress.Service.Network).
+			Logger()
 
-		var ip string
-		if index == -1 {
-			ip = ingress.Service.IP
-		} else {
-			ip = ingress.Service.IP[index+1:]
+		ip, err := e.provider.GetIP(ctx, ingress.Service.Name, ingress.Service.Network)
+		if err != nil {
+			logger.Error().Err(err).Msg("unable to get IP")
+			continue
 		}
 
 		if ip == "" {
-			log.Error().
-				Str("workspace_id", ingress.WorkspaceID).
-				Str("cluster_id", ingress.ClusterID).
-				Str("edge_ingress_id", ingress.ID).
-				Str("service_ip", ingress.Service.IP).
-				Msg("Unable to get IP for service")
-
+			logger.Error().Msg("Unable to get service IP")
 			continue
 		}
 

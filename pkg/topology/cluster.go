@@ -35,11 +35,17 @@ type IngressController struct {
 
 // Service describes a Service.
 type Service struct {
-	Name      string   `json:"name"`
-	Type      string   `json:"type"`
-	ClusterID string   `json:"clusterId"`
-	IPs       []string `json:"externalIPs,omitempty"`
-	Ports     []int    `json:"externalPorts,omitempty"`
+	Name      string     `json:"name"`
+	Type      string     `json:"type"`
+	ClusterID string     `json:"clusterId"`
+	Container *Container `json:"container,omitempty"`
+	Ports     []int      `json:"externalPorts,omitempty"`
+}
+
+// Container describes a container.
+type Container struct {
+	Name     string   `json:"name"`
+	Networks []string `json:"networks"`
 }
 
 // IngressMeta represents the common Ingress metadata properties.

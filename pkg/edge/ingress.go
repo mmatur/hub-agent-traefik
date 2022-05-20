@@ -22,10 +22,10 @@ type Ingress struct {
 
 // Service represents an endpoint for an Ingress.
 type Service struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	IP   string `json:"ip"`
-	Port int    `json:"port"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Network string `json:"network"`
+	Port    int    `json:"port"`
 }
 
 // ACPInfo represents an ACP for an Ingress.

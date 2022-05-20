@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/docker/docker/client"
 	"github.com/ettle/strcase"
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/hub-agent-traefik/pkg/acp"
@@ -28,6 +27,7 @@ import (
 // ProviderWatcher watches provider changes.
 type ProviderWatcher interface {
 	Watch(ctx context.Context, clusterID string, fn func(map[string]*topology.Service)) error
+	GetIP(ctx context.Context, containerName, network string) (string, error)
 }
 
 type runCmd struct {
@@ -121,6 +121,42 @@ func newRunCmd() runCmd {
 				EnvVars:  []string{strcase.ToSNAKE(flagTraefikDockerSwarmMode)},
 				Required: false,
 			},
+			&cli.StringFlag{
+				Name:        flagTraefikDockerEndpoint,
+				Usage:       "Docker server endpoint. Can be a tcp or a unix socket endpoint.",
+				EnvVars:     []string{strcase.ToSNAKE(flagTraefikDockerEndpoint)},
+				DefaultText: "unix:///var/run/docker.sock",
+			},
+			&cli.DurationFlag{
+				Name:    flagTraefikDockerHTTPClientTimeout,
+				Usage:   "Client timeout for HTTP connections.",
+				EnvVars: []string{strcase.ToSNAKE(flagTraefikDockerHTTPClientTimeout)},
+			},
+			&cli.StringFlag{
+				Name:    flagTraefikDockerTLSCA,
+				Usage:   "Docker CA",
+				EnvVars: []string{strcase.ToSNAKE(flagTraefikDockerTLSCA)},
+			},
+			&cli.BoolFlag{
+				Name:    flagTraefikDockerTLSCAOptional,
+				Usage:   "Docker CA Optional",
+				EnvVars: []string{strcase.ToSNAKE(flagTraefikDockerTLSCAOptional)},
+			},
+			&cli.StringFlag{
+				Name:    flagTraefikDockerTLSCert,
+				Usage:   "Docker certificate",
+				EnvVars: []string{strcase.ToSNAKE(flagTraefikDockerTLSCert)},
+			},
+			&cli.StringFlag{
+				Name:    flagTraefikDockerTLSKey,
+				Usage:   "Docker private key",
+				EnvVars: []string{strcase.ToSNAKE(flagTraefikDockerTLSKey)},
+			},
+			&cli.BoolFlag{
+				Name:    flagTraefikDockerTLSInsecureSkipVerify,
+				Usage:   "Insecure skip verify",
+				EnvVars: []string{strcase.ToSNAKE(flagTraefikDockerTLSInsecureSkipVerify)},
+			},
 		},
 	}
 }
@@ -190,13 +226,15 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 		return fmt.Errorf("create certificate client: %w", err)
 	}
 
-	dockerClient, err := client.NewClientWithOpts()
+	dcOpts := createDockerClientOpts(cliCtx)
+
+	dockerClient, err := provider.CreateDockerClient(dcOpts)
 	if err != nil {
 		return fmt.Errorf("create docker client: %w", err)
 	}
 
 	var dockerProvider ProviderWatcher
-	if cliCtx.Bool(flagTraefikDockerSwarmMode) {
+	if dcOpts.SwarmMode {
 		dockerProvider = provider.NewDockerSwarm(dockerClient, 30*time.Second)
 	} else {
 		dockerProvider = provider.NewDocker(dockerClient)
@@ -222,7 +260,7 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 		return fmt.Errorf("create edge client: %w", err)
 	}
 
-	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, reachableAddr, agentCfg.AccessControl.MaxSecuredRoutes)
+	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, dockerProvider, reachableAddr, agentCfg.AccessControl.MaxSecuredRoutes)
 
 	edgeWatcher := edge.NewWatcher(edgeClient, time.Minute)
 
@@ -273,6 +311,30 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 	})
 
 	return group.Wait()
+}
+
+func createDockerClientOpts(cliCtx *cli.Context) provider.DockerClientOpts {
+	dcOpts := provider.DockerClientOpts{
+		HTTPClientTimeout: cliCtx.Duration(flagTraefikDockerHTTPClientTimeout),
+		Endpoint:          cliCtx.String(flagTraefikDockerEndpoint),
+		SwarmMode:         cliCtx.Bool(flagTraefikDockerSwarmMode),
+	}
+
+	if cliCtx.IsSet(flagTraefikDockerTLSCA) ||
+		cliCtx.IsSet(flagTraefikDockerTLSCAOptional) ||
+		cliCtx.IsSet(flagTraefikDockerTLSCert) ||
+		cliCtx.IsSet(flagTraefikDockerTLSKey) ||
+		cliCtx.IsSet(flagTraefikDockerTLSInsecureSkipVerify) {
+		dcOpts.TLSClientConfig = &provider.ClientTLS{
+			CA:                 cliCtx.String(flagTraefikDockerTLSCA),
+			CAOptional:         cliCtx.Bool(flagTraefikDockerTLSCAOptional),
+			Cert:               cliCtx.String(flagTraefikDockerTLSCert),
+			Key:                cliCtx.String(flagTraefikDockerTLSKey),
+			InsecureSkipVerify: cliCtx.Bool(flagTraefikDockerTLSInsecureSkipVerify),
+		}
+	}
+
+	return dcOpts
 }
 
 func listenDocker(ctx context.Context, dockerProvider ProviderWatcher, store *topostore.Store, clusterID string) error {

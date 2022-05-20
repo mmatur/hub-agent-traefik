@@ -46,10 +46,10 @@ func TestClient_GetEdgeIngress(t *testing.T) {
 					Domain:      "https://majestic-beaver-123.traefik-hub.io",
 					Version:     "version",
 					Service: Service{
-						ID:   "service-id",
-						Name: "service-name",
-						IP:   "127.0.0.1",
-						Port: 8080,
+						ID:      "service-id",
+						Name:    "service-name",
+						Network: "foo-net",
+						Port:    8080,
 					},
 					ACP: &ACPInfo{
 						Name: "acp-name",
