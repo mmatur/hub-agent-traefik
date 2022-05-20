@@ -122,10 +122,10 @@ func newRunCmd() runCmd {
 				Required: false,
 			},
 			&cli.StringFlag{
-				Name:        flagTraefikDockerEndpoint,
-				Usage:       "Docker server endpoint. Can be a tcp or a unix socket endpoint.",
-				EnvVars:     []string{strcase.ToSNAKE(flagTraefikDockerEndpoint)},
-				DefaultText: "unix:///var/run/docker.sock",
+				Name:    flagTraefikDockerEndpoint,
+				Usage:   "Docker server endpoint. Can be a tcp or a unix socket endpoint.",
+				EnvVars: []string{strcase.ToSNAKE(flagTraefikDockerEndpoint)},
+				Value:   "unix:///var/run/docker.sock",
 			},
 			&cli.DurationFlag{
 				Name:    flagTraefikDockerHTTPClientTimeout,
