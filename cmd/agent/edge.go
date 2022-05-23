@@ -86,7 +86,7 @@ func (e EdgeUpdater) appendEdgeToTraefikCfg(ctx context.Context, cfg *dynamic.Co
 			Str("service_network", ingress.Service.Network).
 			Logger()
 
-		ip, err := e.provider.GetIP(ctx, ingress.Service.Name, ingress.Service.Network)
+		ip, err := e.provider.GetIP(ctx, "/"+ingress.Service.Name, ingress.Service.Network)
 		if err != nil {
 			logger.Error().Err(err).Msg("unable to get IP")
 			continue

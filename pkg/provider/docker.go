@@ -136,7 +136,7 @@ func (d Docker) getContainerInfo(ctx context.Context, container types.ContainerJ
 	}
 
 	if container.NetworkSettings != nil && len(container.NetworkSettings.Networks) > 0 {
-		c := &topology.Container{Name: container.Name}
+		c := &topology.Container{Name: strings.TrimPrefix(container.Name, "/")}
 
 		for network := range container.NetworkSettings.Networks {
 			c.Networks = append(c.Networks, network)

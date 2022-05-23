@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	dockertypes "github.com/docker/docker/api/types"
@@ -114,7 +115,7 @@ func (d DockerSwarm) getServiceInfo(ctx context.Context, service swarmtypes.Serv
 	case swarmtypes.ResolutionModeDNSRR:
 		logger.Debug().Msgf("Ignored %s endpoint-mode not supported", swarmtypes.ResolutionModeDNSRR)
 	case swarmtypes.ResolutionModeVIP:
-		c := &topology.Container{Name: service.Spec.Name}
+		c := &topology.Container{Name: strings.TrimPrefix(service.Spec.Name, "/")}
 
 		for _, virtualIP := range service.Endpoint.VirtualIPs {
 			networkService := networkMap[virtualIP.NetworkID]
