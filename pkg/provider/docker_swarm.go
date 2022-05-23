@@ -79,7 +79,7 @@ func (d DockerSwarm) getServices(ctx context.Context, clusterID string) (map[str
 	services := make(map[string]*topology.Service)
 	for _, service := range containers {
 		svc := &topology.Service{
-			Name:      service.Spec.Annotations.Name,
+			Name:      strings.TrimPrefix(service.Spec.Name, "/"),
 			ClusterID: clusterID,
 		}
 

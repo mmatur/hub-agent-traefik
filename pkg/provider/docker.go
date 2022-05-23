@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"strings"
-	"unicode"
 
 	"github.com/docker/docker/api/types"
 	eventtypes "github.com/docker/docker/api/types/events"
@@ -15,11 +14,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/hub-agent-traefik/pkg/topology"
-)
-
-const (
-	labelDockerComposeProject = "com.docker.compose.project"
-	labelDockerComposeService = "com.docker.compose.service"
 )
 
 // Docker is a Docker client.
@@ -96,15 +90,13 @@ func (d Docker) getServices(ctx context.Context, clusterID string) (map[string]*
 			ports = append(ports, int(port.PrivatePort))
 		}
 
-		name := getServiceName(container)
-
 		info := d.getContainerInfo(ctx, containerInspect)
 		if info == nil {
 			continue
 		}
 
-		services[name] = &topology.Service{
-			Name:      name,
+		services[containerInspect.Name] = &topology.Service{
+			Name:      strings.TrimPrefix(containerInspect.Name, "/"),
 			ClusterID: clusterID,
 			Container: info,
 			Ports:     ports,
@@ -146,27 +138,6 @@ func (d Docker) getContainerInfo(ctx context.Context, container types.ContainerJ
 	}
 
 	return nil
-}
-
-func getServiceName(container types.Container) string {
-	name := strings.Join(container.Names, "-")
-
-	dcp, okp := container.Labels[labelDockerComposeProject]
-	dcs, oks := container.Labels[labelDockerComposeService]
-	if okp && oks {
-		name = dcs + "_" + dcp
-	}
-
-	return normalize(name)
-}
-
-// normalize Replace all special chars with `-`.
-func normalize(name string) string {
-	fargs := func(c rune) bool {
-		return !unicode.IsLetter(c) && !unicode.IsNumber(c)
-	}
-	// get function
-	return strings.Join(strings.FieldsFunc(name, fargs), "-")
 }
 
 // GetIP gets container IP.
