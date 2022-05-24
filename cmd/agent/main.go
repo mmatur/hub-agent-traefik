@@ -18,6 +18,7 @@ const (
 	flagAuthServerAdvertiseAddr            = "auth-server.advertise-addr"
 	flagHubToken                           = "hub.token"
 	flagHubURL                             = "hub.url"
+	flagHubUIURL                           = "hub.ui.url"
 	flagLogLevel                           = "log.level"
 	flagLogFormat                          = "log.format"
 	flagTraefikHost                        = "traefik.host"

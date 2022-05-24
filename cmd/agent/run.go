@@ -81,6 +81,13 @@ func newRunCmd() runCmd {
 				Hidden:  true,
 			},
 			&cli.StringFlag{
+				Name:    flagHubUIURL,
+				Usage:   "The Hub frontend URL",
+				Value:   "https://hub.traefik.io",
+				EnvVars: []string{strcase.ToSNAKE(flagHubUIURL)},
+				Hidden:  true,
+			},
+			&cli.StringFlag{
 				Name:    flagAuthServerListenAddr,
 				Usage:   "Address on which the auth server listens for auth requests",
 				EnvVars: []string{strcase.ToSNAKE(flagAuthServerListenAddr)},
@@ -260,7 +267,8 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 		return fmt.Errorf("create edge client: %w", err)
 	}
 
-	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, dockerProvider, reachableAddr, agentCfg.AccessControl.MaxSecuredRoutes)
+	hubUIURL := cliCtx.String(flagHubUIURL)
+	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, dockerProvider, reachableAddr, hubUIURL, agentCfg.AccessControl.MaxSecuredRoutes)
 
 	edgeWatcher := edge.NewWatcher(edgeClient, time.Minute)
 

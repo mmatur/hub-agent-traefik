@@ -71,7 +71,7 @@ func TestEdgeUpdater_Update(t *testing.T) {
 		},
 	}
 
-	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, providerMock{}, "127.0.0.1", 2)
+	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, providerMock{}, "127.0.0.1", "localhost", 2)
 	err := edgeUpdater.Update(context.Background(), ingresses, acps)
 	require.NoError(t, err)
 }

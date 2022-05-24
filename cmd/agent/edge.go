@@ -11,7 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/genconf/dynamic"
 	"github.com/traefik/genconf/dynamic/tls"
-	"github.com/traefik/genconf/dynamic/types"
 	"github.com/traefik/hub-agent-traefik/pkg/certificate"
 	"github.com/traefik/hub-agent-traefik/pkg/edge"
 	"github.com/traefik/hub-agent-traefik/pkg/traefik"
@@ -28,16 +27,18 @@ type EdgeUpdater struct {
 	provider      ProviderWatcher
 
 	authServerReachableAddr string
+	catchAllURL             string
 	maxSecuredRoute         int
 }
 
 // NewEdgeUpdater creates EdgeUpdater.
-func NewEdgeUpdater(certClient *certificate.Client, traefikClient *traefik.Client, provider ProviderWatcher, authServerReachableAddr string, maxSecuredRoute int) *EdgeUpdater {
+func NewEdgeUpdater(certClient *certificate.Client, traefikClient *traefik.Client, provider ProviderWatcher, authServerReachableAddr, catchAllURL string, maxSecuredRoute int) *EdgeUpdater {
 	return &EdgeUpdater{
 		certClient:              certClient,
 		traefikClient:           traefikClient,
 		provider:                provider,
 		authServerReachableAddr: authServerReachableAddr,
+		catchAllURL:             catchAllURL,
 		maxSecuredRoute:         maxSecuredRoute,
 	}
 }
@@ -78,6 +79,36 @@ func (e EdgeUpdater) appendEdgeToTraefikCfg(ctx context.Context, cfg *dynamic.Co
 		},
 	})
 
+	cfg.HTTP.Middlewares["strip"] = &dynamic.Middleware{
+		StripPrefixRegex: &dynamic.StripPrefixRegex{
+			Regex: []string{".*"},
+		},
+	}
+
+	cfg.HTTP.Middlewares["add"] = &dynamic.Middleware{
+		AddPrefix: &dynamic.AddPrefix{
+			Prefix: "/edge-ingresses/in-progress",
+		},
+	}
+
+	cfg.HTTP.Routers["catch-all"] = &dynamic.Router{
+		EntryPoints: []string{defaultHubTunnelEntrypoint},
+		Middlewares: []string{"strip", "add"},
+		Service:     "catch-all",
+		Rule:        "PathPrefix(`/`)",
+		Priority:    1,
+		TLS:         &dynamic.RouterTLSConfig{},
+	}
+
+	cfg.HTTP.Services["catch-all"] = &dynamic.Service{
+		LoadBalancer: &dynamic.ServersLoadBalancer{
+			PassHostHeader: func(v bool) *bool { return &v }(false),
+			Servers: []dynamic.Server{
+				{URL: e.catchAllURL},
+			},
+		},
+	}
+
 	for _, ingress := range edgeIngresses {
 		logger := log.With().Str("workspace_id", ingress.WorkspaceID).
 			Str("cluster_id", ingress.ClusterID).
@@ -108,9 +139,7 @@ func (e EdgeUpdater) appendEdgeToTraefikCfg(ctx context.Context, cfg *dynamic.Co
 			Service:     ingress.Name,
 			Rule:        fmt.Sprintf("Host(`%s`)", ingress.Domain),
 			Priority:    60,
-			TLS: &dynamic.RouterTLSConfig{
-				Domains: []types.Domain{{Main: ingress.Domain}},
-			},
+			TLS:         &dynamic.RouterTLSConfig{},
 		}
 
 		cfg.HTTP.Services[ingress.Name] = &dynamic.Service{
