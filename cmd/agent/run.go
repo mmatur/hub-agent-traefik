@@ -225,7 +225,7 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 		}
 	}
 
-	_, err = url.Parse(reachableURL)
+	_, err = url.ParseRequestURI(reachableURL)
 	if err != nil {
 		return fmt.Errorf("invalid URL in `%s` flag: %w", flagAuthServerAdvertiseURL, err)
 	}
