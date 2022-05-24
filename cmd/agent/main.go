@@ -15,7 +15,7 @@ import (
 
 const (
 	flagAuthServerListenAddr               = "auth-server.listen-addr"
-	flagAuthServerAdvertiseAddr            = "auth-server.advertise-addr"
+	flagAuthServerAdvertiseURL             = "auth-server.advertise-url"
 	flagHubToken                           = "hub.token"
 	flagHubURL                             = "hub.url"
 	flagHubUIURL                           = "hub.ui.url"

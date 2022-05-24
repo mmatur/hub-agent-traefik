@@ -18,12 +18,16 @@ import (
 
 // Docker is a Docker client.
 type Docker struct {
-	client client.APIClient
+	client      client.APIClient
+	traefikHost string
 }
 
 // NewDocker creates Docker.
-func NewDocker(dockerClient client.APIClient) *Docker {
-	return &Docker{client: dockerClient}
+func NewDocker(dockerClient client.APIClient, traefikHost string) *Docker {
+	return &Docker{
+		client:      dockerClient,
+		traefikHost: traefikHost,
+	}
 }
 
 // Watch watches docker events.
@@ -67,6 +71,11 @@ func (d Docker) Watch(ctx context.Context, clusterID string, fn func(map[string]
 }
 
 func (d Docker) getServices(ctx context.Context, clusterID string) (map[string]*topology.Service, error) {
+	networks, err := d.getTraefikNetworks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get Traefik networks: %w", err)
+	}
+
 	containers, err := d.client.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("list containers: %w", err)
@@ -90,7 +99,7 @@ func (d Docker) getServices(ctx context.Context, clusterID string) (map[string]*
 			ports = append(ports, int(port.PrivatePort))
 		}
 
-		info := d.getContainerInfo(ctx, containerInspect)
+		info := d.getContainerInfo(ctx, networks, containerInspect)
 		if info == nil {
 			continue
 		}
@@ -106,7 +115,7 @@ func (d Docker) getServices(ctx context.Context, clusterID string) (map[string]*
 	return services, nil
 }
 
-func (d Docker) getContainerInfo(ctx context.Context, container types.ContainerJSON) *topology.Container {
+func (d Docker) getContainerInfo(ctx context.Context, networks []string, container types.ContainerJSON) *topology.Container {
 	if container.HostConfig.NetworkMode.IsHost() {
 		return &topology.Container{Name: container.Name, Networks: []string{"HOST"}}
 	}
@@ -131,13 +140,44 @@ func (d Docker) getContainerInfo(ctx context.Context, container types.ContainerJ
 		c := &topology.Container{Name: strings.TrimPrefix(container.Name, "/")}
 
 		for network := range container.NetworkSettings.Networks {
-			c.Networks = append(c.Networks, network)
+			if contains(networks, network) {
+				c.Networks = append(c.Networks, network)
+			}
 		}
 
 		return c
 	}
 
 	return nil
+}
+
+func (d Docker) getTraefikNetworks(ctx context.Context) ([]string, error) {
+	traefikIP, err := getTraefikIP(d.traefikHost)
+	if err != nil {
+		return nil, fmt.Errorf("get Traefik IP: %w", err)
+	}
+
+	networks, err := d.client.NetworkList(ctx, types.NetworkListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	containerName, err := getContainerName(networks, traefikIP)
+	if err != nil {
+		return nil, err
+	}
+
+	traefik, err := d.client.ContainerInspect(ctx, containerName)
+	if err != nil {
+		return nil, err
+	}
+
+	var networkNames []string
+	for name := range traefik.NetworkSettings.Networks {
+		networkNames = append(networkNames, name)
+	}
+
+	return networkNames, nil
 }
 
 // GetIP gets container IP.
@@ -182,6 +222,34 @@ func (d Docker) GetIP(ctx context.Context, containerName, network string) (strin
 	return getContainerIP(container, network)
 }
 
+func getContainerName(networks []types.NetworkResource, ip net.IP) (string, error) {
+	for _, network := range networks {
+		for _, config := range network.IPAM.Config {
+			_, ipNet, err := net.ParseCIDR(config.Subnet)
+			if err != nil {
+				return "", err
+			}
+
+			if !ipNet.Contains(ip) {
+				continue
+			}
+
+			for name, resource := range network.Containers {
+				containerIP, _, err := net.ParseCIDR(resource.IPv4Address)
+				if err != nil {
+					return "", err
+				}
+
+				if containerIP.Equal(ip) {
+					return name, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("unable to find container with ip: %s", ip)
+}
+
 func getContainerIP(container types.ContainerJSON, network string) (string, error) {
 	if container.NetworkSettings == nil {
 		return "", fmt.Errorf("%s: no network settings", network)
@@ -194,4 +262,14 @@ func getContainerIP(container types.ContainerJSON, network string) (string, erro
 	}
 
 	return "", fmt.Errorf("%s: no IP address", network)
+}
+
+func contains(values []string, value string) bool {
+	for _, v := range values {
+		if v == value {
+			return true
+		}
+	}
+
+	return false
 }

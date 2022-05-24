@@ -18,13 +18,18 @@ import (
 
 // DockerSwarm is a DockerSwarm client.
 type DockerSwarm struct {
-	client   client.APIClient
-	interval time.Duration
+	client      client.APIClient
+	traefikHost string
+	interval    time.Duration
 }
 
 // NewDockerSwarm creates DockerSwarm.
-func NewDockerSwarm(dockerClient client.APIClient, interval time.Duration) *DockerSwarm {
-	return &DockerSwarm{client: dockerClient, interval: interval}
+func NewDockerSwarm(dockerClient client.APIClient, traefikHost string, interval time.Duration) *DockerSwarm {
+	return &DockerSwarm{
+		client:      dockerClient,
+		traefikHost: traefikHost,
+		interval:    interval,
+	}
 }
 
 // Watch watches docker events.
@@ -65,19 +70,23 @@ func (d DockerSwarm) Watch(ctx context.Context, clusterID string, fn func(map[st
 func (d DockerSwarm) getServices(ctx context.Context, clusterID string) (map[string]*topology.Service, error) {
 	logger := log.With().Str("cluster_id", clusterID).Logger()
 
-	networkMap, err := d.getNetworks(ctx)
+	traefikIP, err := getTraefikIP(d.traefikHost)
 	if err != nil {
-		logger.Debug().Err(err).Msg("Failed to network inspect on client for Docker")
-		return nil, fmt.Errorf("get networks: %w", err)
+		return nil, fmt.Errorf("get Traefik IP: %w", err)
 	}
 
-	containers, err := d.client.ServiceList(ctx, dockertypes.ServiceListOptions{})
+	serviceList, err := d.client.ServiceList(ctx, dockertypes.ServiceListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("list services: %w", err)
 	}
 
+	networkMap, err := d.getFilteredNetworks(logger.WithContext(ctx), serviceList, traefikIP)
+	if err != nil {
+		return nil, fmt.Errorf("get filtered networks: %w", err)
+	}
+
 	services := make(map[string]*topology.Service)
-	for _, service := range containers {
+	for _, service := range serviceList {
 		svc := &topology.Service{
 			Name:      strings.TrimPrefix(service.Spec.Name, "/"),
 			ClusterID: clusterID,
@@ -102,6 +111,76 @@ func (d DockerSwarm) getServices(ctx context.Context, clusterID string) (map[str
 	}
 
 	return services, nil
+}
+
+func (d DockerSwarm) getFilteredNetworks(ctx context.Context, serviceList []swarmtypes.Service, ip net.IP) (map[string]*dockertypes.NetworkResource, error) {
+	logger := log.Ctx(ctx)
+
+	networks, err := d.getAllNetworks(ctx)
+	if err != nil {
+		logger.Debug().Err(err).Msg("Failed to inspect Docker networks")
+		return nil, fmt.Errorf("get networks: %w", err)
+	}
+
+	networkMap := toNetworkMap(networks)
+
+	networkIDs := d.getTraefikNetworkIDs(serviceList, networkMap, ip)
+
+	filteredNetworks := make(map[string]*dockertypes.NetworkResource)
+	for _, id := range networkIDs {
+		if networkMap[id] != nil {
+			filteredNetworks[id] = networkMap[id]
+		}
+	}
+
+	return filteredNetworks, nil
+}
+
+func (d DockerSwarm) getTraefikNetworkIDs(serviceList []swarmtypes.Service, networkMap map[string]*dockertypes.NetworkResource, ip net.IP) []string {
+	for _, service := range serviceList {
+		if service.Spec.EndpointSpec == nil {
+			continue
+		}
+
+		if service.Spec.EndpointSpec.Mode != swarmtypes.ResolutionModeVIP {
+			continue
+		}
+
+		var ntwk []string
+		var found bool
+
+		for _, virtualIP := range service.Endpoint.VirtualIPs {
+			networkService := networkMap[virtualIP.NetworkID]
+			if networkService == nil {
+				continue
+			}
+
+			if networkService.Ingress {
+				continue
+			}
+
+			if virtualIP.Addr == "" {
+				continue
+			}
+
+			vIP, _, err := net.ParseCIDR(virtualIP.Addr)
+			if err != nil || vIP == nil {
+				continue
+			}
+
+			ntwk = append(ntwk, virtualIP.NetworkID)
+
+			if vIP.Equal(ip) {
+				found = true
+			}
+		}
+
+		if found {
+			return ntwk
+		}
+	}
+
+	return nil
 }
 
 func (d DockerSwarm) getServiceInfo(ctx context.Context, service swarmtypes.Service, networkMap map[string]*dockertypes.NetworkResource) *topology.Container {
@@ -141,15 +220,13 @@ func (d DockerSwarm) getServiceInfo(ctx context.Context, service swarmtypes.Serv
 			c.Networks = append(c.Networks, networkService.Name)
 		}
 
-		if len(c.Networks) > 0 {
-			return c
-		}
+		return c
 	}
 
 	return nil
 }
 
-func (d DockerSwarm) getNetworks(ctx context.Context) (map[string]*dockertypes.NetworkResource, error) {
+func (d DockerSwarm) getAllNetworks(ctx context.Context) ([]dockertypes.NetworkResource, error) {
 	serverVersion, err := d.client.ServerVersion(ctx)
 	if err != nil {
 		return nil, err
@@ -163,18 +240,7 @@ func (d DockerSwarm) getNetworks(ctx context.Context) (map[string]*dockertypes.N
 		networkListArgs.Add("driver", "overlay")
 	}
 
-	networkList, err := d.client.NetworkList(ctx, dockertypes.NetworkListOptions{Filters: networkListArgs})
-	if err != nil {
-		return nil, fmt.Errorf("network list: %w", err)
-	}
-
-	networkMap := make(map[string]*dockertypes.NetworkResource)
-	for _, network := range networkList {
-		networkToAdd := network
-		networkMap[network.ID] = &networkToAdd
-	}
-
-	return networkMap, nil
+	return d.client.NetworkList(ctx, dockertypes.NetworkListOptions{Filters: networkListArgs})
 }
 
 // GetIP gets service IP.
@@ -186,10 +252,12 @@ func (d DockerSwarm) GetIP(ctx context.Context, serviceName, network string) (st
 		return "", fmt.Errorf("service inspect: %w", err)
 	}
 
-	networkMap, err := d.getNetworks(ctx)
+	networks, err := d.getAllNetworks(ctx)
 	if err != nil {
 		return "", fmt.Errorf("get networks: %w", err)
 	}
+
+	networkMap := toNetworkMap(networks)
 
 	if service.Spec.EndpointSpec == nil {
 		return "", nil
@@ -238,4 +306,14 @@ func getServiceIP(ctx context.Context, service swarmtypes.Service, networkMap ma
 	}
 
 	return ""
+}
+
+func toNetworkMap(networkList []dockertypes.NetworkResource) map[string]*dockertypes.NetworkResource {
+	networkMap := make(map[string]*dockertypes.NetworkResource)
+	for _, network := range networkList {
+		networkToAdd := network
+		networkMap[network.ID] = &networkToAdd
+	}
+
+	return networkMap
 }

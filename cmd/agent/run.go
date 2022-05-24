@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 
 	"github.com/ettle/strcase"
@@ -94,9 +95,9 @@ func newRunCmd() runCmd {
 				Value:   "0.0.0.0:80",
 			},
 			&cli.StringFlag{
-				Name:    flagAuthServerAdvertiseAddr,
+				Name:    flagAuthServerAdvertiseURL,
 				Usage:   "Address on which Traefik can reach the Agent auth server. Required when the automatic IP discovery fails",
-				EnvVars: []string{strcase.ToSNAKE(flagAuthServerAdvertiseAddr)},
+				EnvVars: []string{strcase.ToSNAKE(flagAuthServerAdvertiseURL)},
 			},
 			&cli.StringFlag{
 				Name:     flagTraefikTLSCA,
@@ -215,16 +216,21 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 		return fmt.Errorf("unreachable Traefik probably because the Hub TLS configuration in Traefik is missing: %w", err)
 	}
 
-	listenAddr, reachableAddr := cliCtx.String(flagAuthServerListenAddr), cliCtx.String(flagAuthServerAdvertiseAddr)
-	if reachableAddr == "" {
+	listenAddr, reachableURL := cliCtx.String(flagAuthServerListenAddr), cliCtx.String(flagAuthServerAdvertiseURL)
+	if reachableURL == "" {
 		log.Debug().Msg("Using auto-discovery to find Agent reachable address")
-		reachableAddr, err = getAgentReachableAddress(cliCtx.Context, traefikClient, listenAddr)
+		reachableURL, err = getAgentReachableAddress(cliCtx.Context, traefikClient, listenAddr)
 		if err != nil {
-			return fmt.Errorf("get agent reachable address: %w. Consider using the `%s` flag", err, flagAuthServerAdvertiseAddr)
+			return fmt.Errorf("get agent reachable address: %w. Consider using the `%s` flag", err, flagAuthServerAdvertiseURL)
 		}
 	}
 
-	log.Info().Str("addr", reachableAddr).Msg("Using Agent reachable address")
+	_, err = url.Parse(reachableURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL in `%s` flag: %w", flagAuthServerAdvertiseURL, err)
+	}
+
+	log.Info().Str("addr", reachableURL).Msg("Using Agent reachable address")
 
 	acpServer := acp.NewServer(listenAddr)
 
@@ -242,9 +248,9 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	var dockerProvider ProviderWatcher
 	if dcOpts.SwarmMode {
-		dockerProvider = provider.NewDockerSwarm(dockerClient, 30*time.Second)
+		dockerProvider = provider.NewDockerSwarm(dockerClient, traefikHost, 30*time.Second)
 	} else {
-		dockerProvider = provider.NewDocker(dockerClient)
+		dockerProvider = provider.NewDocker(dockerClient, traefikHost)
 	}
 
 	config := topostore.Config{
@@ -268,7 +274,7 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 	}
 
 	hubUIURL := cliCtx.String(flagHubUIURL)
-	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, dockerProvider, reachableAddr, hubUIURL, agentCfg.AccessControl.MaxSecuredRoutes)
+	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, dockerProvider, reachableURL, hubUIURL, agentCfg.AccessControl.MaxSecuredRoutes)
 
 	edgeWatcher := edge.NewWatcher(edgeClient, time.Minute)
 
