@@ -12,6 +12,7 @@ import (
 type DataPointsFinder interface {
 	FindByIngressAndService(table, ingress, service string, from, to time.Time) (metrics.DataPoints, error)
 	FindByService(table, service string, from, to time.Time) metrics.DataPoints
+	FindByEdgeIngress(table, edgeIngress string, from, to time.Time) metrics.DataPoints
 	FindByIngress(table, ingress string, from, to time.Time) metrics.DataPoints
 }
 
@@ -52,6 +53,8 @@ func (p *ThresholdProcessor) Process(rule *Rule) (*Alert, error) {
 		}
 	case rule.Service != "":
 		dataPoints = p.dataPoints.FindByService(table, rule.Service, from, to)
+	case rule.EdgeIngress != "":
+		dataPoints = p.dataPoints.FindByEdgeIngress(table, rule.Ingress, from, to)
 	case rule.Ingress != "":
 		dataPoints = p.dataPoints.FindByIngress(table, rule.Ingress, from, to)
 	default:

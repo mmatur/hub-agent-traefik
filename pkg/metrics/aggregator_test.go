@@ -98,31 +98,34 @@ func TestDataPoints_Aggregate(t *testing.T) {
 
 func TestAggregator_Aggregate(t *testing.T) {
 	ms := []metrics.Metric{
-		&metrics.Counter{Name: metrics.MetricRequests, Ingress: "myIngress", Service: "whoami@default", Value: 12},
-		&metrics.Counter{Name: metrics.MetricRequests, Ingress: "myIngress", Service: "whoami@default", Value: 14},
-		&metrics.Counter{Name: metrics.MetricRequestClientErrors, Ingress: "myIngress", Service: "whoami@default", Value: 14},
-		&metrics.Counter{Name: metrics.MetricRequests, Ingress: "myIngress", Service: "whoami2@default", Value: 16},
-		&metrics.Counter{Name: metrics.MetricRequestErrors, Ingress: "myIngress", Service: "whoami2@default", Value: 16},
+		&metrics.Counter{Name: metrics.MetricRequests, Ingress: "myIngress", EdgeIngress: "myIngress", Service: "whoami@default", Value: 12},
+		&metrics.Counter{Name: metrics.MetricRequests, Ingress: "myIngress", EdgeIngress: "myIngress", Service: "whoami@default", Value: 14},
+		&metrics.Counter{Name: metrics.MetricRequestClientErrors, Ingress: "myIngress", EdgeIngress: "myIngress", Service: "whoami@default", Value: 14},
+		&metrics.Counter{Name: metrics.MetricRequests, Ingress: "myIngress", EdgeIngress: "myIngress", Service: "whoami2@default", Value: 16},
+		&metrics.Counter{Name: metrics.MetricRequestErrors, Ingress: "myIngress", EdgeIngress: "myIngress", Service: "whoami2@default", Value: 16},
 		&metrics.Histogram{
-			Name:    metrics.MetricRequestDuration,
-			Ingress: "myIngress",
-			Service: "whoami@default",
-			Sum:     0.041072671000000005,
-			Count:   26,
+			Name:        metrics.MetricRequestDuration,
+			EdgeIngress: "myIngress",
+			Ingress:     "myIngress",
+			Service:     "whoami@default",
+			Sum:         0.041072671000000005,
+			Count:       26,
 		},
 		&metrics.Histogram{
-			Name:    metrics.MetricRequestDuration,
-			Ingress: "myIngress",
-			Service: "whoami2@default",
-			Sum:     0.021072671000000005,
-			Count:   16,
+			Name:        metrics.MetricRequestDuration,
+			EdgeIngress: "myIngress",
+			Ingress:     "myIngress",
+			Service:     "whoami2@default",
+			Sum:         0.021072671000000005,
+			Count:       16,
 		},
 		&metrics.Histogram{
-			Name:    metrics.MetricRequestDuration,
-			Ingress: "myIngress",
-			Service: "whoami2@default",
-			Sum:     0.021072671000000005,
-			Count:   16,
+			Name:        metrics.MetricRequestDuration,
+			EdgeIngress: "myIngress",
+			Ingress:     "myIngress",
+			Service:     "whoami2@default",
+			Sum:         0.021072671000000005,
+			Count:       16,
 		},
 	}
 
@@ -130,7 +133,7 @@ func TestAggregator_Aggregate(t *testing.T) {
 
 	require.Len(t, svcs, 2)
 
-	assert.Equal(t, svcs[metrics.SetKey{Ingress: "myIngress", Service: "whoami@default"}], metrics.MetricSet{
+	assert.Equal(t, svcs[metrics.SetKey{Ingress: "myIngress", EdgeIngress: "myIngress", Service: "whoami@default"}], metrics.MetricSet{
 		Requests:            26,
 		RequestErrors:       0,
 		RequestClientErrors: 14,
@@ -139,7 +142,7 @@ func TestAggregator_Aggregate(t *testing.T) {
 			Count: 26,
 		},
 	})
-	assert.Equal(t, svcs[metrics.SetKey{Ingress: "myIngress", Service: "whoami2@default"}], metrics.MetricSet{
+	assert.Equal(t, svcs[metrics.SetKey{Ingress: "myIngress", EdgeIngress: "myIngress", Service: "whoami2@default"}], metrics.MetricSet{
 		Requests:            16,
 		RequestErrors:       16,
 		RequestClientErrors: 0,

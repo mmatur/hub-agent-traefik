@@ -52,11 +52,11 @@ func TestScraper_ScrapeTraefik(t *testing.T) {
 	require.NoError(t, err)
 
 	// router
-	assert.Contains(t, got, &metrics.Histogram{Name: metrics.MetricRequestDuration, Ingress: "myIngress-default-example-com", Sum: 0.0137623, Count: 1})
-	assert.Contains(t, got, &metrics.Histogram{Name: metrics.MetricRequestDuration, Ingress: "default-myIngressRoute-6f97418635c7e18853da", Sum: 0.0216373, Count: 1})
-	assert.Contains(t, got, &metrics.Counter{Name: metrics.MetricRequests, Ingress: "myIngress-default-example-com", Value: 2})
-	assert.Contains(t, got, &metrics.Counter{Name: metrics.MetricRequestClientErrors, Ingress: "myIngress-default-example-com", Value: 4})
-	assert.Contains(t, got, &metrics.Counter{Name: metrics.MetricRequestErrors, Ingress: "myIngress-default-example-com", Value: 6})
-	assert.Contains(t, got, &metrics.Counter{Name: metrics.MetricRequests, Ingress: "default-myIngressRoute-6f97418635c7e18853da", Value: 1})
+	assert.Contains(t, got, &metrics.Histogram{Name: metrics.MetricRequestDuration, EdgeIngress: "myIngress-default-example-com", Sum: 0.0137623, Count: 1})
+	assert.Contains(t, got, &metrics.Histogram{Name: metrics.MetricRequestDuration, EdgeIngress: "default-myIngressRoute-6f97418635c7e18853da", Sum: 0.0216373, Count: 1})
+	assert.Contains(t, got, &metrics.Counter{Name: metrics.MetricRequests, EdgeIngress: "myIngress-default-example-com", Value: 2})
+	assert.Contains(t, got, &metrics.Counter{Name: metrics.MetricRequestClientErrors, EdgeIngress: "myIngress-default-example-com", Value: 4})
+	assert.Contains(t, got, &metrics.Counter{Name: metrics.MetricRequestErrors, EdgeIngress: "myIngress-default-example-com", Value: 6})
+	assert.Contains(t, got, &metrics.Counter{Name: metrics.MetricRequests, EdgeIngress: "default-myIngressRoute-6f97418635c7e18853da", Value: 1})
 	require.Len(t, got, 8)
 }

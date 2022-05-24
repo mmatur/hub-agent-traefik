@@ -607,6 +607,10 @@ func (m *mockDataPointsFinder) FindByService(table, service string, from, to tim
 	return nil
 }
 
+func (m *mockDataPointsFinder) FindByEdgeIngress(table, edgeIngress string, from, to time.Time) metrics.DataPoints {
+	return m.Called(table, edgeIngress, from, to).Get(0).(metrics.DataPoints)
+}
+
 func (m *mockDataPointsFinder) FindByIngress(table, ingress string, from, to time.Time) metrics.DataPoints {
 	return m.Called(table, ingress, from, to).Get(0).(metrics.DataPoints)
 }

@@ -45,9 +45,10 @@ func (p DataPoints) Aggregate() DataPoint {
 
 // DataPointGroup contains a unique group of data points (primary keys).
 type DataPointGroup struct {
-	Ingress    string      `avro:"ingress"`
-	Service    string      `avro:"service"`
-	DataPoints []DataPoint `avro:"data_points"`
+	EdgeIngress string      `avro:"edge_ingress"`
+	Ingress     string      `avro:"ingress"`
+	Service     string      `avro:"service"`
+	DataPoints  []DataPoint `avro:"data_points"`
 }
 
 // DataPoint contains fully aggregated metrics.
@@ -71,8 +72,9 @@ type DataPoint struct {
 
 // SetKey contains the primary key of a metric set.
 type SetKey struct {
-	Ingress string
-	Service string
+	EdgeIngress string
+	Ingress     string
+	Service     string
 }
 
 // MetricSet contains assembled metrics for an ingress or service.
@@ -137,7 +139,7 @@ func Aggregate(m []Metric) map[SetKey]MetricSet {
 	svcs := map[SetKey]MetricSet{}
 
 	for _, metric := range m {
-		key := SetKey{Ingress: metric.IngressName(), Service: metric.ServiceName()}
+		key := SetKey{EdgeIngress: metric.EdgeIngressName(), Ingress: metric.IngressName(), Service: metric.ServiceName()}
 		svc := svcs[key]
 
 		switch val := metric.(type) {

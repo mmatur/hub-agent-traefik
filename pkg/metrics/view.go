@@ -40,7 +40,7 @@ func (v *DataPointView) FindByIngressAndService(table, ingress, service string, 
 		groupFound    bool
 		err           error
 	)
-	v.store.ForEach(table, func(ingr, svc string, points DataPoints) {
+	v.store.ForEach(table, func(_, ingr, svc string, points DataPoints) {
 		if ingr != ingress || svc != service {
 			return
 		}
@@ -79,8 +79,38 @@ func (v *DataPointView) FindByService(table, service string, from, to time.Time)
 	fromTS, toTS := from.Unix(), to.Unix()
 
 	var groups []DataPoints
-	v.store.ForEach(table, func(_, svc string, points DataPoints) {
+	v.store.ForEach(table, func(_, _, svc string, points DataPoints) {
 		if svc != service {
+			return
+		}
+
+		// Filter points to only keep those in the given time range.
+		var pointsInRange DataPoints
+		for _, point := range points {
+			if point.Timestamp < fromTS || point.Timestamp > toTS {
+				continue
+			}
+
+			pointsInRange = append(pointsInRange, point)
+		}
+
+		groups = append(groups, pointsInRange)
+	})
+
+	return mergeGroups(groups)
+}
+
+// FindByEdgeIngress finds the data points for the traffic on the given edge ingress for the specified time range (inclusive).
+func (v *DataPointView) FindByEdgeIngress(table, edgeIngress string, from, to time.Time) DataPoints {
+	if to.Before(from) || to == from {
+		return nil
+	}
+
+	fromTS, toTS := from.Unix(), to.Unix()
+
+	var groups []DataPoints
+	v.store.ForEach(table, func(edgeIngr, _, _ string, points DataPoints) {
+		if edgeIngr != edgeIngress {
 			return
 		}
 
@@ -109,7 +139,7 @@ func (v *DataPointView) FindByIngress(table, ingress string, from, to time.Time)
 	fromTS, toTS := from.Unix(), to.Unix()
 
 	var groups []DataPoints
-	v.store.ForEach(table, func(ingr, _ string, points DataPoints) {
+	v.store.ForEach(table, func(_, ingr, _ string, points DataPoints) {
 		if ingr != ingress {
 			return
 		}

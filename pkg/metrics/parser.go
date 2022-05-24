@@ -54,7 +54,7 @@ func (p TraefikParser) parseRouterRequestDuration(metrics []*dto.Metric) []Metri
 		// Service can't be accurately obtained on router metrics. The service label holds the service name to which the
 		// router will deliver the traffic, not the leaf node of the service tree (e.g. load-balancer, wrr).
 		hist.Name = MetricRequestDuration
-		hist.Ingress = router
+		hist.EdgeIngress = router
 
 		enrichedMetrics = append(enrichedMetrics, hist)
 	}
@@ -79,9 +79,9 @@ func (p TraefikParser) parseRouterRequestTotal(metrics []*dto.Metric) []Metric {
 		// Service can't be accurately obtained on router metrics. The service label holds the service name to which the
 		// router will deliver the traffic, not the leaf node of the service tree (e.g. load-balancer, wrr).
 		enrichedMetrics = append(enrichedMetrics, &Counter{
-			Name:    MetricRequests,
-			Ingress: router,
-			Value:   counter,
+			Name:        MetricRequests,
+			EdgeIngress: router,
+			Value:       counter,
 		})
 
 		metricErrorName := getMetricErrorName(metric.Label, "code")
@@ -89,9 +89,9 @@ func (p TraefikParser) parseRouterRequestTotal(metrics []*dto.Metric) []Metric {
 			continue
 		}
 		enrichedMetrics = append(enrichedMetrics, &Counter{
-			Name:    metricErrorName,
-			Ingress: router,
-			Value:   counter,
+			Name:        metricErrorName,
+			EdgeIngress: router,
+			Value:       counter,
 		})
 	}
 
