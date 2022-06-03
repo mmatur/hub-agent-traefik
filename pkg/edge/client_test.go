@@ -124,7 +124,7 @@ func TestClient_GetACPs(t *testing.T) {
 					ClusterID:   "cluster-id",
 					Version:     "version",
 					Name:        "name",
-					BasicAuth: &ACPBasicDigestAuthConfig{
+					BasicAuth: &ACPBasicAuthConfig{
 						Users:                    []string{"toto"},
 						Realm:                    "foo",
 						StripAuthorizationHeader: false,

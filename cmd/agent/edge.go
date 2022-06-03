@@ -226,14 +226,6 @@ func headerToForward(acp edge.ACP) ([]string, error) {
 			headerToFwd = append(headerToFwd, "Authorization")
 		}
 
-	case acp.DigestAuth != nil:
-		if headerName := acp.DigestAuth.ForwardUsernameHeader; headerName != "" {
-			headerToFwd = append(headerToFwd, headerName)
-		}
-		if acp.DigestAuth.StripAuthorizationHeader {
-			headerToFwd = append(headerToFwd, "Authorization")
-		}
-
 	default:
 		return nil, errors.New("unsupported ACP type")
 	}

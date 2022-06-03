@@ -60,7 +60,7 @@ func TestEdgeUpdater_Update(t *testing.T) {
 			ClusterID:   "cluster-id",
 			Version:     "version",
 			Name:        "name",
-			BasicAuth: &edge.ACPBasicDigestAuthConfig{
+			BasicAuth: &edge.ACPBasicAuthConfig{
 				Users:                    []string{"toto"},
 				Realm:                    "foo",
 				StripAuthorizationHeader: false,

@@ -25,7 +25,7 @@ type Handler struct {
 }
 
 // NewHandler creates a new basic auth ACP Handler.
-func NewHandler(cfg *edge.ACPBasicDigestAuthConfig, name string) (*Handler, error) {
+func NewHandler(cfg *edge.ACPBasicAuthConfig, name string) (*Handler, error) {
 	users, err := getUsers(cfg.Users, basicUserParser)
 	if err != nil {
 		return nil, err

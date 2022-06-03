@@ -10,10 +10,9 @@ type ACP struct {
 
 	Version string `json:"version"`
 
-	Name       string                    `json:"name"`
-	JWT        *ACPJWTConfig             `json:"jwt"`
-	BasicAuth  *ACPBasicDigestAuthConfig `json:"basicAuth"`
-	DigestAuth *ACPBasicDigestAuthConfig `json:"digestAuth"`
+	Name      string              `json:"name"`
+	JWT       *ACPJWTConfig       `json:"jwt"`
+	BasicAuth *ACPBasicAuthConfig `json:"basicAuth"`
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -32,8 +31,8 @@ type ACPJWTConfig struct {
 	Claims                     string            `json:"claims"`
 }
 
-// ACPBasicDigestAuthConfig configures a basic or digest auth ACP handler.
-type ACPBasicDigestAuthConfig struct {
+// ACPBasicAuthConfig configures a basic auth ACP handler.
+type ACPBasicAuthConfig struct {
 	Users                    []string `json:"users"`
 	Realm                    string   `json:"realm"`
 	StripAuthorizationHeader bool     `json:"stripAuthorizationHeader"`

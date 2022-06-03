@@ -102,10 +102,6 @@ issues:
     - path: pkg/version/version.go
       linters:
         - gochecknoglobals
-    # Digest auth uses md5 in tests.
-    - path: pkg/acp/digestauth/digest_auth_request_test.go
-      linters:
-        - gosec
     # No need for cryptographically secured number generation here.
     - path: pkg/traefik/client.go
       text: 'G404: Use of weak random number generator \(math/rand instead of crypto/rand\)'
