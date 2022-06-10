@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/traefik/hub-agent-traefik/pkg/metrics"
 )
@@ -487,16 +486,15 @@ func TestThresholdProcessor_Process(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
-			view := &mockDataPointsFinder{}
-			view.Test(t)
+			view := newDataPointsFinderMock(t)
 
 			switch {
 			case test.rule.Ingress != "" && test.rule.Service != "":
-				view.On("FindByIngressAndService", test.table, test.rule.Ingress, test.rule.Service, test.from, test.to).Return(test.pointsToReturn, nil).Once()
+				view.OnFindByIngressAndService(test.table, test.rule.Ingress, test.rule.Service, test.from, test.to).TypedReturns(test.pointsToReturn, nil).Once()
 			case test.rule.Service != "":
-				view.On("FindByService", test.table, test.rule.Service, test.from, test.to).Return(test.pointsToReturn).Once()
+				view.OnFindByService(test.table, test.rule.Service, test.from, test.to).TypedReturns(test.pointsToReturn).Once()
 			case test.rule.Ingress != "":
-				view.On("FindByIngress", test.table, test.rule.Ingress, test.from, test.to).Return(test.pointsToReturn).Once()
+				view.OnFindByIngress(test.table, test.rule.Ingress, test.from, test.to).TypedReturns(test.pointsToReturn).Once()
 			}
 
 			threshProc := NewThresholdProcessor(view)
@@ -586,31 +584,4 @@ func TestGetValue(t *testing.T) {
 			assert.Equal(t, test.expected.value, value)
 		})
 	}
-}
-
-type mockDataPointsFinder struct {
-	mock.Mock
-}
-
-func (m *mockDataPointsFinder) FindByIngressAndService(table, ingress, service string, from, to time.Time) (metrics.DataPoints, error) {
-	call := m.Called(table, ingress, service, from, to)
-
-	return call.Get(0).(metrics.DataPoints), call.Error(1)
-}
-
-func (m *mockDataPointsFinder) FindByService(table, service string, from, to time.Time) metrics.DataPoints {
-	call := m.Called(table, service, from, to)
-
-	if dataPoints := call.Get(0); dataPoints != nil {
-		return dataPoints.(metrics.DataPoints)
-	}
-	return nil
-}
-
-func (m *mockDataPointsFinder) FindByEdgeIngress(table, edgeIngress string, from, to time.Time) metrics.DataPoints {
-	return m.Called(table, edgeIngress, from, to).Get(0).(metrics.DataPoints)
-}
-
-func (m *mockDataPointsFinder) FindByIngress(table, ingress string, from, to time.Time) metrics.DataPoints {
-	return m.Called(table, ingress, from, to).Get(0).(metrics.DataPoints)
 }

@@ -13,19 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/traefik/hub-agent-traefik/pkg/certificate"
 	"github.com/traefik/hub-agent-traefik/pkg/edge"
-	"github.com/traefik/hub-agent-traefik/pkg/topology"
 	"github.com/traefik/hub-agent-traefik/pkg/traefik"
 )
-
-type providerMock struct{}
-
-func (m providerMock) Watch(ctx context.Context, clusterID string, fn func(map[string]*topology.Service)) error {
-	return nil
-}
-
-func (m providerMock) GetIP(ctx context.Context, containerName, network string) (string, error) {
-	return "127.0.0.1", nil
-}
 
 func TestEdgeUpdater_Update(t *testing.T) {
 	certClient := setupCertClient(t)

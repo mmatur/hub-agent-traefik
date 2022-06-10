@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"sync"
 	"testing"
 	"time"
 
@@ -36,24 +35,22 @@ func TestManager_updateTunnels(t *testing.T) {
 	stableBrokerURL, err := url.Parse(stableBroker.URL)
 	require.NoError(t, err)
 
-	client := &clientMock{
-		listClusterTunnelEndpoints: func() ([]Endpoint, error) {
-			return []Endpoint{
-				{
-					TunnelID:       "current-tunnel",
-					BrokerEndpoint: "ws://" + currentBrokerURL.Host,
-				},
-				{
-					TunnelID:       "new-tunnel",
-					BrokerEndpoint: "ws://" + newBrokerURL.Host,
-				},
-				{
-					TunnelID:       "stable-tunnel",
-					BrokerEndpoint: "ws://" + stableBrokerURL.Host,
-				},
-			}, nil
-		},
-	}
+	client := newBackendMock(t)
+	client.OnListClusterTunnelEndpoints().TypedReturns(
+		[]Endpoint{
+			{
+				TunnelID:       "current-tunnel",
+				BrokerEndpoint: "ws://" + currentBrokerURL.Host,
+			},
+			{
+				TunnelID:       "new-tunnel",
+				BrokerEndpoint: "ws://" + newBrokerURL.Host,
+			},
+			{
+				TunnelID:       "stable-tunnel",
+				BrokerEndpoint: "ws://" + stableBrokerURL.Host,
+			},
+		}, nil).Once()
 
 	c := fakeClient(t)
 	manager := NewManager(client, traefikMockAddr, "token", time.Minute)
@@ -266,40 +263,4 @@ func buildBroker(t *testing.T, message []byte, tunnelID string) *httptest.Server
 			}
 		}
 	}))
-}
-
-type clientMock struct {
-	listClusterTunnelEndpoints func() ([]Endpoint, error)
-}
-
-func (c *clientMock) ListClusterTunnelEndpoints(_ context.Context) ([]Endpoint, error) {
-	return c.listClusterTunnelEndpoints()
-}
-
-type readWriteCloseMock struct {
-	closedMu sync.Mutex
-	closed   bool
-}
-
-func (r *readWriteCloseMock) Read(_ []byte) (n int, err error) {
-	r.closedMu.Lock()
-	defer r.closedMu.Unlock()
-
-	if r.closed {
-		return 0, io.EOF
-	}
-
-	return 0, nil
-}
-
-func (r *readWriteCloseMock) Write(_ []byte) (n int, err error) {
-	return
-}
-
-func (r *readWriteCloseMock) Close() error {
-	r.closedMu.Lock()
-	r.closed = true
-	r.closedMu.Unlock()
-
-	return nil
 }
