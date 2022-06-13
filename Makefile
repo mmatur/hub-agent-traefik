@@ -1,5 +1,5 @@
 .PHONY: clean lint test build \
-		publish publish-latest image image-dev multi-arch-image
+		publish publish-latest image image-dev multi-arch-image-%
 
 BIN_NAME := hub-agent-traefik
 MAIN_DIRECTORY := ./cmd/agent
@@ -42,8 +42,8 @@ image-dev: build
 dev: image-dev
 
 ## Build Multi archs Docker image
-multi-arch-image:
-	docker buildx build $(DOCKER_BUILDX_ARGS) --build-arg VERSION=$(VERSION) -t ghcr.io/traefik/$(BIN_NAME):$(DOCKER_IMAGE_TAG) --platform=$(DOCKER_BUILD_PLATFORMS) -f buildx.Dockerfile .
+multi-arch-image-%:
+	docker buildx build $(DOCKER_BUILDX_ARGS) --build-arg VERSION=$(VERSION) -t ghcr.io/traefik/$(BIN_NAME):$* --platform=$(DOCKER_BUILD_PLATFORMS) -f buildx.Dockerfile .
 
 publish:
 	docker push ghcr.io/traefik/$(BIN_NAME):$(VERSION)

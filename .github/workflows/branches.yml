@@ -66,17 +66,10 @@ jobs:
           username: traefiker
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build multi arch image
-        if: github.repository == 'traefik/hub-agent-traefik' && github.ref == 'refs/heads/deploy'
-        env:
-          DOCKER_BUILDX_ARGS: --push
-        run: |
-          make multi-arch-image
-
       - name: Build multi arch experimental image
         if: github.repository == 'traefik/hub-agent-traefik' && github.ref == 'refs/heads/master'
         env:
           DOCKER_BUILDX_ARGS: --push
-          DOCKER_IMAGE_TAG: experimental
         run: |
-          make multi-arch-image
+          make multi-arch-image-experimental
+          make multi-arch-image-${GITHUB_REF_NAME}-${GITHUB_SHA:0:7}-$(date +%s)
