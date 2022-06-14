@@ -62,8 +62,9 @@ func TestManager_refreshRules(t *testing.T) {
 		},
 	}
 
-	backend := newBackendMock(t)
-	backend.OnGetRules().TypedReturns(rules, nil).Once()
+	backend := newBackendMock(t).
+		OnGetRules().TypedReturns(rules, nil).Once().
+		Parent
 
 	mgr := NewManager(backend, nil, alertRefreshInterval, alertSchedulerInterval)
 
@@ -74,11 +75,9 @@ func TestManager_refreshRules(t *testing.T) {
 }
 
 func TestManager_refreshRules_handlesClientError(t *testing.T) {
-	backend := newBackendMock(t)
-	backend.
-		OnGetRules().
-		TypedReturns(nil, errors.New("boom")).
-		Once()
+	backend := newBackendMock(t).
+		OnGetRules().TypedReturns(nil, errors.New("boom")).Once().OnGetRules().
+		Parent
 
 	mgr := NewManager(backend, nil, alertRefreshInterval, alertSchedulerInterval)
 
@@ -90,7 +89,7 @@ func TestManager_checkAlerts(t *testing.T) {
 	tests := []struct {
 		desc     string
 		rules    []Rule
-		on       func(rules []Rule, processor map[string]Processor, backend *backendMock)
+		setup    func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock)
 		expected require.ErrorAssertionFunc
 	}{
 		{
@@ -111,37 +110,31 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
-				rule := rules[0]
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
+
 				alert := Alert{
-					RuleID:  rule.ID,
-					Ingress: rule.Ingress,
-					Service: rule.Service,
+					RuleID:  rules[0].ID,
+					Ingress: rules[0].Ingress,
+					Service: rules[0].Service,
 					Points: []Point{
 						{Timestamp: time.Now().Add(-30 * time.Minute).Unix(), Value: 110},
 						{Timestamp: time.Now().Add(-20 * time.Minute).Unix(), Value: 100},
 					},
 					Logs:      []byte("logs"),
-					Threshold: rule.Threshold,
+					Threshold: rules[0].Threshold,
 				}
 
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rule).
-					TypedReturns(&alert, nil).
-					Once()
+				processor := newProcessorMock(t).
+					OnProcess(&rules[0]).TypedReturns(&alert, nil).Once().
+					Parent
 
-				processors[ThresholdType] = processor
+				backend := newBackendMock(t).
+					OnPreflightAlerts([]Alert{alert}).TypedReturns([]Alert{alert}, nil).Once().
+					OnSendAlerts([]Alert{alert}).TypedReturns(nil).Once().
+					Parent
 
-				backend.
-					OnPreflightAlerts([]Alert{alert}).
-					TypedReturns([]Alert{alert}, nil).
-					Once()
-
-				backend.
-					OnSendAlerts([]Alert{alert}).
-					TypedReturns(nil).
-					Once()
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.NoError,
 		},
@@ -163,32 +156,30 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
-				rule := rules[0]
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
+
 				alert := Alert{
-					RuleID:  rule.ID,
-					Ingress: rule.Ingress,
-					Service: rule.Service,
+					RuleID:  rules[0].ID,
+					Ingress: rules[0].Ingress,
+					Service: rules[0].Service,
 					Points: []Point{
 						{Timestamp: time.Now().Add(-30 * time.Minute).Unix(), Value: 110},
 						{Timestamp: time.Now().Add(-20 * time.Minute).Unix(), Value: 100},
 					},
 					Logs:      []byte("logs"),
-					Threshold: rule.Threshold,
+					Threshold: rules[0].Threshold,
 				}
 
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rule).
-					TypedReturns(&alert, nil).
-					Once()
+				processor := newProcessorMock(t).
+					OnProcess(&rules[0]).TypedReturns(&alert, nil).Once().
+					Parent
 
-				processors[ThresholdType] = processor
+				backend := newBackendMock(t).
+					OnPreflightAlerts([]Alert{alert}).TypedReturns([]Alert{}, nil).Once().
+					Parent
 
-				backend.
-					OnPreflightAlerts([]Alert{alert}).
-					TypedReturns([]Alert{}, nil).
-					Once()
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.NoError,
 		},
@@ -210,20 +201,20 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rules[0]).
-					TypedReturns(nil, nil).
-					Once()
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
 
-				processors[ThresholdType] = processor
+				processor := newProcessorMock(t).
+					OnProcess(&rules[0]).TypedReturns(nil, nil).Once().
+					Parent
 
 				var alerts []Alert
-				backend.
-					OnPreflightAlerts(alerts).
-					TypedReturns([]Alert{}, nil).
-					Once()
+
+				backend := newBackendMock(t).
+					OnPreflightAlerts(alerts).TypedReturns([]Alert{}, nil).Once().
+					Parent
+
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.NoError,
 		},
@@ -245,37 +236,31 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
-				rule := rules[0]
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
+
 				alert := Alert{
-					RuleID:  rule.ID,
-					Ingress: rule.Ingress,
-					Service: rule.Service,
+					RuleID:  rules[0].ID,
+					Ingress: rules[0].Ingress,
+					Service: rules[0].Service,
 					Points: []Point{
 						{Timestamp: time.Now().Add(-30 * time.Minute).Unix(), Value: 110},
 						{Timestamp: time.Now().Add(-20 * time.Minute).Unix(), Value: 100},
 					},
 					Logs:      []byte("logs"),
-					Threshold: rule.Threshold,
+					Threshold: rules[0].Threshold,
 				}
 
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rule).
-					TypedReturns(&alert, nil).
-					Once()
+				processor := newProcessorMock(t).
+					OnProcess(&rules[0]).TypedReturns(&alert, nil).Once().
+					Parent
 
-				processors[ThresholdType] = processor
+				backend := newBackendMock(t).
+					OnPreflightAlerts([]Alert{alert}).TypedReturns([]Alert{alert}, nil).Once().
+					OnSendAlerts([]Alert{alert}).TypedReturns(errors.New("boom")).Once().
+					Parent
 
-				backend.
-					OnPreflightAlerts([]Alert{alert}).
-					TypedReturns([]Alert{alert}, nil).
-					Once()
-
-				backend.
-					OnSendAlerts([]Alert{alert}).
-					TypedReturns(errors.New("boom")).
-					Once()
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.Error,
 		},
@@ -297,32 +282,30 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
-				rule := rules[0]
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
+
 				alert := Alert{
-					RuleID:  rule.ID,
-					Ingress: rule.Ingress,
-					Service: rule.Service,
+					RuleID:  rules[0].ID,
+					Ingress: rules[0].Ingress,
+					Service: rules[0].Service,
 					Points: []Point{
 						{Timestamp: time.Now().Add(-30 * time.Minute).Unix(), Value: 110},
 						{Timestamp: time.Now().Add(-20 * time.Minute).Unix(), Value: 100},
 					},
 					Logs:      []byte("logs"),
-					Threshold: rule.Threshold,
+					Threshold: rules[0].Threshold,
 				}
 
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rule).
-					TypedReturns(&alert, nil).
-					Once()
+				processor := newProcessorMock(t).
+					OnProcess(&rules[0]).TypedReturns(&alert, nil).Once().
+					Parent
 
-				processors[ThresholdType] = processor
+				backend := newBackendMock(t).
+					OnPreflightAlerts([]Alert{alert}).TypedReturns(nil, errors.New("boom")).Once().
+					Parent
 
-				backend.
-					OnPreflightAlerts([]Alert{alert}).
-					TypedReturns(nil, errors.New("boom")).
-					Once()
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.Error,
 		},
@@ -344,20 +327,20 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rules[0]).
-					TypedReturns(nil, errors.New("boom")).
-					Once()
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
 
-				processors[ThresholdType] = processor
+				processor := newProcessorMock(t).
+					OnProcess(&rules[0]).TypedReturns(nil, errors.New("boom")).Once().
+					Parent
 
 				var alerts []Alert
-				backend.
-					OnPreflightAlerts(alerts).
-					TypedReturns([]Alert{}, nil).
-					Once()
+
+				backend := newBackendMock(t).
+					OnPreflightAlerts(alerts).TypedReturns([]Alert{}, nil).Once().
+					Parent
+
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.NoError,
 		},
@@ -393,7 +376,9 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
+
 				alerts := []Alert{
 					{
 						RuleID:  rules[0].ID,
@@ -419,27 +404,17 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				}
 
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rules[0]).
-					TypedReturns(&alerts[0], nil).
-					Once()
-				processor.
-					OnProcess(&rules[1]).
-					TypedReturns(&alerts[1], nil).
-					Once()
+				processor := newProcessorMock(t).
+					OnProcess(&rules[0]).TypedReturns(&alerts[0], nil).Once().
+					OnProcess(&rules[1]).TypedReturns(&alerts[1], nil).Once().
+					Parent
 
-				processors[ThresholdType] = processor
+				backend := newBackendMock(t).
+					OnPreflightAlerts(alerts).TypedReturns(alerts, nil).Once().
+					OnSendAlerts(alerts).TypedReturns(nil).Once().
+					Parent
 
-				backend.
-					OnPreflightAlerts(alerts).
-					TypedReturns(alerts, nil).
-					Once()
-
-				backend.
-					OnSendAlerts(alerts).
-					TypedReturns(nil).
-					Once()
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.NoError,
 		},
@@ -475,7 +450,9 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
+
 				alert := Alert{
 					RuleID:  rules[0].ID,
 					Ingress: rules[0].Ingress,
@@ -488,27 +465,17 @@ func TestManager_checkAlerts(t *testing.T) {
 					Threshold: rules[0].Threshold,
 				}
 
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rules[0]).
-					TypedReturns(&alert, nil).
-					Once()
-				processor.
-					OnProcess(&rules[1]).
-					TypedReturns(nil, nil).
-					Once()
+				processor := newProcessorMock(t).
+					OnProcess(&rules[0]).TypedReturns(&alert, nil).Once().
+					OnProcess(&rules[1]).TypedReturns(nil, nil).Once().
+					Parent
 
-				processors[ThresholdType] = processor
+				backend := newBackendMock(t).
+					OnPreflightAlerts([]Alert{alert}).TypedReturns([]Alert{alert}, nil).Once().
+					OnSendAlerts([]Alert{alert}).TypedReturns(nil).Once().
+					Parent
 
-				backend.
-					OnPreflightAlerts([]Alert{alert}).
-					TypedReturns([]Alert{alert}, nil).
-					Once()
-
-				backend.
-					OnSendAlerts([]Alert{alert}).
-					TypedReturns(nil).
-					Once()
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.NoError,
 		},
@@ -544,7 +511,9 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
+
 				alerts := []Alert{
 					{
 						RuleID:  rules[0].ID,
@@ -570,27 +539,17 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				}
 
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rules[0]).
-					TypedReturns(&alerts[0], nil).
-					Once()
-				processor.
-					OnProcess(&rules[1]).
-					TypedReturns(&alerts[1], nil).
-					Once()
+				processor := newProcessorMock(t).
+					OnProcess(&rules[0]).TypedReturns(&alerts[0], nil).Once().
+					OnProcess(&rules[1]).TypedReturns(&alerts[1], nil).Once().
+					Parent
 
-				processors[ThresholdType] = processor
+				backend := newBackendMock(t).
+					OnPreflightAlerts(alerts).TypedReturns([]Alert{alerts[0]}, nil).Once().
+					OnSendAlerts([]Alert{alerts[0]}).TypedReturns(nil).Once().
+					Parent
 
-				backend.
-					OnPreflightAlerts(alerts).
-					TypedReturns([]Alert{alerts[0]}, nil).
-					Once()
-
-				backend.
-					OnSendAlerts([]Alert{alerts[0]}).
-					TypedReturns(nil).
-					Once()
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.NoError,
 		},
@@ -626,7 +585,9 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
+
 				alert := Alert{
 					RuleID:  rules[1].ID,
 					Ingress: rules[1].Ingress,
@@ -639,27 +600,17 @@ func TestManager_checkAlerts(t *testing.T) {
 					Threshold: rules[1].Threshold,
 				}
 
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rules[0]).
-					TypedReturns(nil, errors.New("boom")).
-					Once()
-				processor.
-					OnProcess(&rules[1]).
-					TypedReturns(&alert, nil).
-					Once()
+				processor := newProcessorMock(t).
+					OnProcess(&rules[0]).TypedReturns(nil, errors.New("boom")).Once().
+					OnProcess(&rules[1]).TypedReturns(&alert, nil).Once().
+					Parent
 
-				processors[ThresholdType] = processor
+				backend := newBackendMock(t).
+					OnPreflightAlerts([]Alert{alert}).TypedReturns([]Alert{alert}, nil).Once().
+					OnSendAlerts([]Alert{alert}).TypedReturns(nil).Once().
+					Parent
 
-				backend.
-					OnPreflightAlerts([]Alert{alert}).
-					TypedReturns([]Alert{alert}, nil).
-					Once()
-
-				backend.
-					OnSendAlerts([]Alert{alert}).
-					TypedReturns(nil).
-					Once()
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.NoError,
 		},
@@ -686,7 +637,9 @@ func TestManager_checkAlerts(t *testing.T) {
 					},
 				},
 			},
-			on: func(rules []Rule, processors map[string]Processor, backend *backendMock) {
+			setup: func(t *testing.T, rules []Rule) (map[string]Processor, *backendMock) {
+				t.Helper()
+
 				alert := Alert{
 					RuleID:  rules[1].ID,
 					Ingress: rules[1].Ingress,
@@ -699,23 +652,16 @@ func TestManager_checkAlerts(t *testing.T) {
 					Threshold: rules[1].Threshold,
 				}
 
-				processor := newProcessorMock(t)
-				processor.
-					OnProcess(&rules[1]).
-					TypedReturns(&alert, nil).
-					Once()
+				processor := newProcessorMock(t).
+					OnProcess(&rules[1]).TypedReturns(&alert, nil).Once().
+					Parent
 
-				processors[ThresholdType] = processor
+				backend := newBackendMock(t).
+					OnPreflightAlerts([]Alert{alert}).TypedReturns([]Alert{alert}, nil).Once().
+					OnSendAlerts([]Alert{alert}).TypedReturns(nil).Once().
+					Parent
 
-				backend.
-					OnPreflightAlerts([]Alert{alert}).
-					TypedReturns([]Alert{alert}, nil).
-					Once()
-
-				backend.
-					OnSendAlerts([]Alert{alert}).
-					TypedReturns(nil).
-					Once()
+				return map[string]Processor{ThresholdType: processor}, backend
 			},
 			expected: require.NoError,
 		},
@@ -727,10 +673,7 @@ func TestManager_checkAlerts(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
-			backend := newBackendMock(t)
-			processors := make(map[string]Processor)
-
-			test.on(test.rules, processors, backend)
+			processors, backend := test.setup(t, test.rules)
 
 			mgr := NewManager(backend, processors, time.Second, time.Second)
 			mgr.rules = test.rules

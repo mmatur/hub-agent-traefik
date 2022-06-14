@@ -5,6 +5,7 @@ package tunnel
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 )
@@ -12,6 +13,7 @@ import (
 // backendMock mock of Backend.
 type backendMock struct{ mock.Mock }
 
+// newBackendMock creates a new backendMock.
 func newBackendMock(tb testing.TB) *backendMock {
 	tb.Helper()
 
@@ -33,15 +35,79 @@ func (_m *backendMock) ListClusterTunnelEndpoints(_ context.Context) ([]Endpoint
 }
 
 func (_m *backendMock) OnListClusterTunnelEndpoints() *backendListClusterTunnelEndpointsCall {
-	return &backendListClusterTunnelEndpointsCall{Call: _m.Mock.On("ListClusterTunnelEndpoints")}
+	return &backendListClusterTunnelEndpointsCall{Call: _m.Mock.On("ListClusterTunnelEndpoints"), Parent: _m}
 }
 
 func (_m *backendMock) OnListClusterTunnelEndpointsRaw() *backendListClusterTunnelEndpointsCall {
-	return &backendListClusterTunnelEndpointsCall{Call: _m.Mock.On("ListClusterTunnelEndpoints")}
+	return &backendListClusterTunnelEndpointsCall{Call: _m.Mock.On("ListClusterTunnelEndpoints"), Parent: _m}
 }
 
-type backendListClusterTunnelEndpointsCall struct{ *mock.Call }
+type backendListClusterTunnelEndpointsCall struct {
+	*mock.Call
+	Parent *backendMock
+}
 
-func (_c backendListClusterTunnelEndpointsCall) TypedReturns(a []Endpoint, b error) *mock.Call {
-	return _c.Return(a, b)
+func (_c *backendListClusterTunnelEndpointsCall) Panic(msg string) *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Call.Panic(msg)
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) Once() *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Call.Once()
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) Twice() *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Call.Twice()
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) Times(i int) *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Call.Times(i)
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) WaitUntil(w <-chan time.Time) *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Call.WaitUntil(w)
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) After(d time.Duration) *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Call.After(d)
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) Run(fn func(args mock.Arguments)) *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Call.Run(fn)
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) Maybe() *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Call.Maybe()
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) TypedReturns(a []Endpoint, b error) *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Return(a, b)
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) ReturnsFn(fn func() ([]Endpoint, error)) *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Return(fn)
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) TypedRun(fn func()) *backendListClusterTunnelEndpointsCall {
+	_c.Call = _c.Call.Run(func(args mock.Arguments) {
+		fn()
+	})
+	return _c
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) OnListClusterTunnelEndpoints() *backendListClusterTunnelEndpointsCall {
+	return _c.Parent.OnListClusterTunnelEndpoints()
+}
+
+func (_c *backendListClusterTunnelEndpointsCall) OnListClusterTunnelEndpointsRaw() *backendListClusterTunnelEndpointsCall {
+	return _c.Parent.OnListClusterTunnelEndpointsRaw()
 }

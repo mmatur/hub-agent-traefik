@@ -35,8 +35,7 @@ func TestManager_updateTunnels(t *testing.T) {
 	stableBrokerURL, err := url.Parse(stableBroker.URL)
 	require.NoError(t, err)
 
-	client := newBackendMock(t)
-	client.OnListClusterTunnelEndpoints().TypedReturns(
+	client := newBackendMock(t).OnListClusterTunnelEndpoints().TypedReturns(
 		[]Endpoint{
 			{
 				TunnelID:       "current-tunnel",
@@ -50,9 +49,11 @@ func TestManager_updateTunnels(t *testing.T) {
 				TunnelID:       "stable-tunnel",
 				BrokerEndpoint: "ws://" + stableBrokerURL.Host,
 			},
-		}, nil).Once()
+		}, nil).Once().
+		Parent
 
 	c := fakeClient(t)
+
 	manager := NewManager(client, traefikMockAddr, "token", time.Minute)
 	manager.tunnels["current-tunnel-new-broker"] = &tunnel{
 		BrokerEndpoint:  "old-endpoint",
