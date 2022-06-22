@@ -33,6 +33,11 @@ import (
 	"github.com/traefik/hub-agent-traefik/pkg/topology"
 )
 
+const (
+	labelDockerComposeProject = "com.docker.compose.project"
+	labelDockerComposeService = "com.docker.compose.service"
+)
+
 // Docker is a Docker client.
 type Docker struct {
 	client      client.APIClient
@@ -121,8 +126,9 @@ func (d Docker) getServices(ctx context.Context, clusterID string) (map[string]*
 			continue
 		}
 
-		services[containerInspect.Name] = &topology.Service{
-			Name:      strings.TrimPrefix(containerInspect.Name, "/"),
+		serviceName := getServiceName(containerInspect)
+		services[serviceName] = &topology.Service{
+			Name:      serviceName,
 			ClusterID: clusterID,
 			Container: info,
 			Ports:     ports,
@@ -198,7 +204,27 @@ func (d Docker) getTraefikNetworks(ctx context.Context) ([]string, error) {
 }
 
 // GetIP gets container IP.
-func (d Docker) GetIP(ctx context.Context, containerName, network string) (string, error) {
+func (d Docker) GetIP(ctx context.Context, serviceName, network string) (string, error) {
+	containerName := serviceName
+
+	splitted := strings.Split(strings.TrimPrefix(serviceName, "/"), "~")
+	if len(splitted) == 2 {
+		containers, err := d.client.ContainerList(ctx, types.ContainerListOptions{Filters: filters.NewArgs(filters.KeyValuePair{
+			Key:   "label",
+			Value: fmt.Sprintf("%s=%s", labelDockerComposeProject, splitted[0]),
+		}, filters.KeyValuePair{
+			Key:   "label",
+			Value: fmt.Sprintf("%s=%s", labelDockerComposeService, splitted[1]),
+		})})
+		if err != nil {
+			return "", fmt.Errorf("list containers: %w", err)
+		}
+
+		if len(containers) > 0 {
+			containerName = containers[0].ID
+		}
+	}
+
 	container, err := d.client.ContainerInspect(ctx, containerName)
 	if err != nil {
 		return "", err
@@ -289,4 +315,20 @@ func contains(values []string, value string) bool {
 	}
 
 	return false
+}
+
+func getServiceName(container types.ContainerJSON) string {
+	name := strings.TrimPrefix(container.Name, "/")
+
+	if container.Config == nil {
+		return name
+	}
+
+	dcp, okp := container.Config.Labels[labelDockerComposeProject]
+	dcs, oks := container.Config.Labels[labelDockerComposeService]
+	if okp && oks {
+		name = dcp + "~" + dcs
+	}
+
+	return name
 }
