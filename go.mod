@@ -16,11 +16,11 @@ require (
 	github.com/ldez/go-git-cmd-wrapper/v2 v2.3.0
 	github.com/pquerna/cachecontrol v0.1.0
 	github.com/prometheus/client_model v0.2.0
-	github.com/prometheus/common v0.32.1
+	github.com/prometheus/common v0.35.0
 	github.com/rs/zerolog v1.27.0
-	github.com/stretchr/testify v1.7.2
-	github.com/traefik/genconf v0.1.0
-	github.com/urfave/cli/v2 v2.10.1
+	github.com/stretchr/testify v1.7.5
+	github.com/traefik/genconf v0.2.0
+	github.com/urfave/cli/v2 v2.10.3
 	github.com/vulcand/predicate v1.2.0
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 	gopkg.in/square/go-jose.v2 v2.6.0
@@ -58,9 +58,9 @@ require (
 	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	golang.org/x/crypto v0.0.0-20211215165025-cf75a172585e // indirect
-	golang.org/x/net v0.0.0-20211209124913-491a49abca63 // indirect
+	golang.org/x/net v0.0.0-20220225172249-27dd8689420f // indirect
 	golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c // indirect
-	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1 // indirect
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
