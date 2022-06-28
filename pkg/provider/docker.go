@@ -78,6 +78,8 @@ func (d Docker) Watch(ctx context.Context, clusterID string, fn func(map[string]
 		case event := <-eventsc:
 			if event.Action == "start" ||
 				event.Action == "die" ||
+				event.Action == "destroy" ||
+				event.Action == "stop" ||
 				strings.HasPrefix(event.Action, "health_status") {
 				startStopHandle(event)
 			}
