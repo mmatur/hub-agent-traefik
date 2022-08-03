@@ -15,20 +15,6 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-package main
+package store
 
-import (
-	"context"
-
-	"github.com/traefik/hub-agent-traefik/pkg/topology"
-)
-
-type providerMock struct{}
-
-func (m providerMock) Watch(_ context.Context, _ func(map[string]*topology.Service)) error {
-	return nil
-}
-
-func (m providerMock) GetIP(_ context.Context, _, _ string) (string, error) {
-	return "127.0.0.1", nil
-}
+// mocktail:PlatformClient

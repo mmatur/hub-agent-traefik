@@ -15,20 +15,28 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-package main
+package topology
 
-import (
-	"context"
-
-	"github.com/traefik/hub-agent-traefik/pkg/topology"
-)
-
-type providerMock struct{}
-
-func (m providerMock) Watch(_ context.Context, _ func(map[string]*topology.Service)) error {
-	return nil
+// Reference describes a Reference.
+type Reference struct {
+	Topology Cluster `json:"topology"`
+	Version  int64   `json:"version"`
 }
 
-func (m providerMock) GetIP(_ context.Context, _, _ string) (string, error) {
-	return "127.0.0.1", nil
+// Cluster describes a Cluster.
+type Cluster struct {
+	Services map[string]*Service `json:"services"`
+}
+
+// Service describes a Service.
+type Service struct {
+	Name          string     `json:"name"`
+	Container     *Container `json:"container,omitempty"`
+	ExternalPorts []int      `json:"externalPorts,omitempty"`
+}
+
+// Container describes a container.
+type Container struct {
+	Name     string   `json:"name"`
+	Networks []string `json:"networks"`
 }
