@@ -26,6 +26,8 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+
+	"github.com/traefik/hub-agent-traefik/pkg/version"
 )
 
 // APIError represents an error returned by the API.
@@ -154,8 +156,9 @@ func (c *Client) SendAlerts(ctx context.Context, data []Alert) error {
 	return c.do(req, nil)
 }
 
-func (c Client) do(req *http.Request, result interface{}) error {
+func (c *Client) do(req *http.Request, result interface{}) error {
 	req.Header.Set("Authorization", "Bearer "+c.token)
+	version.SetUserAgent(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

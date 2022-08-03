@@ -28,6 +28,7 @@ import (
 
 	"github.com/hamba/avro"
 	"github.com/traefik/hub-agent-traefik/pkg/metrics/protocol"
+	"github.com/traefik/hub-agent-traefik/pkg/version"
 )
 
 // Client for the token service.
@@ -100,10 +101,11 @@ func (c *Client) Send(ctx context.Context, data map[string][]DataPointGroup) err
 	return c.do(req, nil)
 }
 
-func (c Client) do(req *http.Request, result interface{}) error {
+func (c *Client) do(req *http.Request, result interface{}) error {
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Accept", "avro/binary;v2")
 	req.Header.Set("Content-Type", "avro/binary;v2")
+	version.SetUserAgent(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

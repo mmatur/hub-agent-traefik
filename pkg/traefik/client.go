@@ -41,6 +41,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/genconf/dynamic"
 	"github.com/traefik/hub-agent-traefik/pkg/logger"
+	"github.com/traefik/hub-agent-traefik/pkg/version"
 )
 
 const hostname = "proxy.traefik"
@@ -339,6 +340,7 @@ func (c *Client) GetMetrics(ctx context.Context) ([]*dto.MetricFamily, error) {
 
 func (c *Client) doReq(req *http.Request) (*http.Response, error) {
 	req.Host = hostname
+	version.SetUserAgent(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

@@ -29,6 +29,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/hub-agent-traefik/pkg/logger"
+	"github.com/traefik/hub-agent-traefik/pkg/version"
 )
 
 // Client allows interacting with the tunnel service.
@@ -96,8 +97,9 @@ func (c *Client) ListClusterTunnelEndpoints(ctx context.Context) ([]Endpoint, er
 	return tunnels, nil
 }
 
-func (c Client) do(req *http.Request, result interface{}) error {
+func (c *Client) do(req *http.Request, result interface{}) error {
 	req.Header.Set("Authorization", "Bearer "+c.token)
+	version.SetUserAgent(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

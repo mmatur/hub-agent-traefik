@@ -174,6 +174,7 @@ func (c *Client) Ping(ctx context.Context) error {
 
 func (c *Client) do(req *http.Request, result interface{}) error {
 	req.Header.Set("Authorization", "Bearer "+c.token)
+	version.SetUserAgent(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
