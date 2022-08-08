@@ -56,7 +56,7 @@ func (c *ClientTLS) CreateTLSConfig() (*tls.Config, error) {
 	if !hasCert || !hasKey {
 		return &tls.Config{
 			RootCAs:            caPool,
-			InsecureSkipVerify: c.InsecureSkipVerify, // nolint:gosec // it's a valid option
+			InsecureSkipVerify: c.InsecureSkipVerify, //nolint:gosec // it's a valid option
 			ClientAuth:         clientAuth,
 		}, nil
 	}
@@ -69,7 +69,7 @@ func (c *ClientTLS) CreateTLSConfig() (*tls.Config, error) {
 	return &tls.Config{
 		Certificates:       []tls.Certificate{cert},
 		RootCAs:            caPool,
-		InsecureSkipVerify: c.InsecureSkipVerify, // nolint:gosec // it's a valid option
+		InsecureSkipVerify: c.InsecureSkipVerify, //nolint:gosec // it's a valid option
 		ClientAuth:         clientAuth,
 	}, nil
 }

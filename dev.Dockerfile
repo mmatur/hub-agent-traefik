@@ -4,7 +4,7 @@ FROM golang:1-alpine AS delve-builder
 RUN apk add --no-cache --no-progress build-base \
     && rm -rf /var/cache/apk/*
 
-RUN go install github.com/go-delve/delve/cmd/dlv@v1.7.3
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.9.0
 
 FROM alpine
 
