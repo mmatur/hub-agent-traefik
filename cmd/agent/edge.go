@@ -264,6 +264,13 @@ func headerToForward(acp edge.ACP) ([]string, error) {
 			headerToFwd = append(headerToFwd, "Authorization")
 		}
 
+	case acp.OIDC != nil:
+		for headerName := range acp.OIDC.ForwardHeaders {
+			headerToFwd = append(headerToFwd, headerName)
+		}
+
+		headerToFwd = append(headerToFwd, "Authorization", "Cookie")
+
 	default:
 		return nil, errors.New("unsupported ACP type")
 	}

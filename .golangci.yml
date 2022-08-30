@@ -52,17 +52,17 @@ linters-settings:
         COMPANY: Traefik Labs
     template: |-
       Copyright (C) {{ YEAR }} {{ COMPANY }}
-  
+
       This program is free software: you can redistribute it and/or modify
       it under the terms of the GNU Affero General Public License as published
       by the Free Software Foundation, either version 3 of the License, or
       (at your option) any later version.
-  
+
       This program is distributed in the hope that it will be useful,
       but WITHOUT ANY WARRANTY; without even the implied warranty of
       MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
       GNU Affero General Public License for more details.
-  
+
       You should have received a copy of the GNU Affero General Public License
       along with this program. If not, see <https://www.gnu.org/licenses/>.
 
@@ -74,6 +74,8 @@ linters:
     - scopelint # deprecated
     - golint # deprecated
     - exhaustivestruct # deprecated
+    - ifshort # deprecated
+    - structcheck # deprecated
     - execinquery # not relevant (SQL)
     - sqlclosecheck # not relevant (SQL)
     - rowserrcheck # not relevant (SQL)
@@ -134,3 +136,15 @@ issues:
     - path: pkg/platform/client_test.go
       linters:
         - gocognit
+    - path: pkg/acp/oidc/oidc.go
+      text: "Function 'ServeHTTP' has too many statements"
+      linters:
+        - funlen
+    # Reducing cyclomatic complexity would reduce readability.
+    - path: pkg/acp/oidc/oidc.go
+      text: "cyclomatic complexity 21 of func `(.*).ServeHTTP` is high"
+      linters:
+        - gocyclo
+    - path: pkg/acp/oidc/oidc_test.go
+      linters:
+        - gosec

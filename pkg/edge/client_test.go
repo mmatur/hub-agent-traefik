@@ -28,6 +28,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/basicauth"
 )
 
 func setup(t *testing.T) (*Client, *http.ServeMux) {
@@ -141,7 +142,7 @@ func TestClient_GetACPs(t *testing.T) {
 					ClusterID:   "cluster-id",
 					Version:     "version",
 					Name:        "name",
-					BasicAuth: &ACPBasicAuthConfig{
+					BasicAuth: &basicauth.Config{
 						Users:                    []string{"toto"},
 						Realm:                    "foo",
 						StripAuthorizationHeader: false,

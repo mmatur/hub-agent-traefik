@@ -29,6 +29,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/hub-agent-traefik/pkg/acp/basicauth"
 	"github.com/traefik/hub-agent-traefik/pkg/acp/jwt"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/oidc"
 	"github.com/traefik/hub-agent-traefik/pkg/edge"
 )
 
@@ -47,15 +48,8 @@ func NewServer(listenAddr string) *Server {
 }
 
 // UpdateHandler updates auth routes served by the Server.
-func (s *Server) UpdateHandler(acps []edge.ACP) error {
-	routes, err := buildRoutes(acps)
-	if err != nil {
-		return fmt.Errorf("build routes: %w", err)
-	}
-
-	s.handler.Update(routes)
-
-	return nil
+func (s *Server) UpdateHandler(ctx context.Context, acps []edge.ACP) {
+	s.handler.Update(buildRoutes(ctx, acps))
 }
 
 // Run runs the ACP auth server.
@@ -107,36 +101,56 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 }
 
-func buildRoutes(acps []edge.ACP) (http.Handler, error) {
+func buildRoutes(ctx context.Context, acps []edge.ACP) http.Handler {
 	mux := http.NewServeMux()
 
 	for _, acp := range acps {
-		switch {
-		case acp.JWT != nil:
-			jwtHandler, err := jwt.NewHandler(acp.JWT, acp.Name)
-			if err != nil {
-				return nil, fmt.Errorf("create %q JWT ACP handler: %w", acp.Name, err)
-			}
+		path := "/" + acp.Name
 
-			path := "/" + acp.Name
+		logger := log.With().Str("acp_name", acp.Name).Str("acp_type", getACPType(acp)).Logger()
 
-			log.Debug().Str("acp_name", acp.Name).Str("path", path).Msg("Registering JWT ACP handler")
-
-			mux.Handle(path, jwtHandler)
-
-		case acp.BasicAuth != nil:
-			h, err := basicauth.NewHandler(acp.BasicAuth, acp.Name)
-			if err != nil {
-				return nil, fmt.Errorf("create %q basic auth ACP handler: %w", acp.Name, err)
-			}
-			path := "/" + acp.Name
-			log.Debug().Str("acp_name", acp.Name).Str("path", path).Msg("Registering basic auth ACP handler")
-			mux.Handle(path, h)
-
-		default:
-			return nil, errors.New("unknown ACP handler type")
+		route, err := buildRoute(ctx, acp)
+		if err != nil {
+			logger.Error().Err(err).Msg("create ACP handler")
+			continue
 		}
+
+		logger.Debug().Msg("Registering ACP handler")
+
+		mux.Handle(path, route)
 	}
 
-	return mux, nil
+	return mux
+}
+
+func buildRoute(ctx context.Context, acp edge.ACP) (http.Handler, error) {
+	switch {
+	case acp.OIDC != nil:
+		return oidc.NewHandler(ctx, acp.OIDC, acp.Name)
+
+	case acp.JWT != nil:
+		return jwt.NewHandler(acp.JWT, acp.Name)
+
+	case acp.BasicAuth != nil:
+		return basicauth.NewHandler(acp.BasicAuth, acp.Name)
+
+	default:
+		return nil, errors.New("unknown ACP handler type")
+	}
+}
+
+func getACPType(acp edge.ACP) string {
+	switch {
+	case acp.JWT != nil:
+		return "JWT"
+
+	case acp.BasicAuth != nil:
+		return "Basic Auth"
+
+	case acp.OIDC != nil:
+		return "OIDC"
+
+	default:
+		return "unknown"
+	}
 }

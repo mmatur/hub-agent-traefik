@@ -24,17 +24,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/traefik/hub-agent-traefik/pkg/edge"
 )
 
 func TestBasicAuth_fail(t *testing.T) {
-	cfg := &edge.ACPBasicAuthConfig{
+	cfg := &Config{
 		Users: []string{"test"},
 	}
 	_, err := NewHandler(cfg, "authName")
 	require.Error(t, err)
 
-	cfg = &edge.ACPBasicAuthConfig{
+	cfg = &Config{
 		Users: []string{"test:test"},
 	}
 	handler, err := NewHandler(cfg, "acp@my-ns")
@@ -50,7 +49,7 @@ func TestBasicAuth_fail(t *testing.T) {
 }
 
 func TestBasicAuth_userHeader(t *testing.T) {
-	cfg := &edge.ACPBasicAuthConfig{
+	cfg := &Config{
 		Users:                 []string{"test:$apr1$H6uskkkW$IgXLP6ewTrSuBkTrqE8wj/"},
 		ForwardUsernameHeader: "User",
 	}

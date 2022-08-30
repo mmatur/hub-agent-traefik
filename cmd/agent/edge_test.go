@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/traefik/genconf/dynamic"
 	"github.com/traefik/genconf/dynamic/tls"
+	"github.com/traefik/hub-agent-traefik/pkg/acp/basicauth"
 	"github.com/traefik/hub-agent-traefik/pkg/certificate"
 	"github.com/traefik/hub-agent-traefik/pkg/edge"
 	"github.com/traefik/hub-agent-traefik/pkg/traefik"
@@ -146,7 +147,7 @@ func TestEdgeUpdater_Update(t *testing.T) {
 			ClusterID:   "cluster-id",
 			Version:     "version",
 			Name:        "acp-name",
-			BasicAuth: &edge.ACPBasicAuthConfig{
+			BasicAuth: &basicauth.Config{
 				Users:                    []string{"toto"},
 				Realm:                    "foo",
 				StripAuthorizationHeader: false,

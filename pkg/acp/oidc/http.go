@@ -15,29 +15,24 @@ You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-package edge
+package oidc
 
 import (
+	"net"
+	"net/http"
 	"time"
-
-	"github.com/traefik/hub-agent-traefik/pkg/acp/basicauth"
-	"github.com/traefik/hub-agent-traefik/pkg/acp/jwt"
-	"github.com/traefik/hub-agent-traefik/pkg/acp/oidc"
 )
 
-// ACP is an Access Control Policy definition.
-type ACP struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspaceId"`
-	ClusterID   string `json:"clusterId"`
-
-	Version string `json:"version"`
-
-	Name      string            `json:"name"`
-	JWT       *jwt.Config       `json:"jwt"`
-	BasicAuth *basicauth.Config `json:"basicAuth"`
-	OIDC      *oidc.Config      `json:"oidc"`
-
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+func newHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			TLSHandshakeTimeout: 10 * time.Second,
+			Proxy:               http.ProxyFromEnvironment,
+		},
+		Timeout: 5 * time.Second,
+	}
 }

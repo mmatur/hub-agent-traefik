@@ -193,7 +193,6 @@ func (c *Client) GetAgentReachableIP(ctx context.Context) (string, error) {
 	})
 
 	s := &http.Server{Handler: mux, ReadHeaderTimeout: 2 * time.Second}
-
 	defer func() { _ = s.Close() }()
 
 	transport, isTransport := c.httpClient.Transport.(*http.Transport)

@@ -33,8 +33,44 @@ import (
 	jwtreq "github.com/golang-jwt/jwt/request"
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/hub-agent-traefik/pkg/acp/jwt/expr"
-	"github.com/traefik/hub-agent-traefik/pkg/edge"
 )
+
+// Config configures a JWT ACP handler.
+type Config struct {
+	SigningSecret              string            `json:"signingSecret"`
+	SigningSecretBase64Encoded bool              `json:"signingSecretBase64Encoded"`
+	PublicKey                  string            `json:"publicKey"`
+	JWKsFile                   FileOrContent     `json:"jwksFile"`
+	JWKsURL                    string            `json:"jwksUrl"`
+	StripAuthorizationHeader   bool              `json:"stripAuthorizationHeader"`
+	ForwardHeaders             map[string]string `json:"forwardHeaders"`
+	TokenQueryKey              string            `json:"tokenQueryKey"`
+	Claims                     string            `json:"claims"`
+}
+
+func (cfg *Config) keySet() (KeySet, error) {
+	if cfg == nil {
+		return nil, nil
+	}
+
+	if cfg.JWKsFile != "" {
+		if cfg.JWKsFile.IsPath() {
+			return NewFileKeySet(cfg.JWKsFile.String()), nil
+		}
+
+		ks, err := NewContentKeySet([]byte(cfg.JWKsFile))
+		if err != nil {
+			return nil, fmt.Errorf("new content key set: %w. If using a file path, maybe the file does not exist", err)
+		}
+		return ks, nil
+	}
+
+	if cfg.JWKsURL != "" && !strings.HasPrefix(cfg.JWKsURL, "/") {
+		return NewRemoteKeySet(cfg.JWKsURL), nil
+	}
+
+	return nil, nil
+}
 
 // Handler is a JWT ACP Handler.
 type Handler struct {
@@ -59,7 +95,7 @@ type Handler struct {
 }
 
 // NewHandler returns a new JWT ACP Handler.
-func NewHandler(cfg *edge.ACPJWTConfig, polName string) (*Handler, error) {
+func NewHandler(cfg *Config, polName string) (*Handler, error) {
 	if cfg.PublicKey == "" && cfg.SigningSecret == "" && cfg.JWKsFile == "" && cfg.JWKsURL == "" {
 		return nil, errors.New("at least a signing secret, public key or a JWKs file or URL is required")
 	}
@@ -103,7 +139,7 @@ func NewHandler(cfg *edge.ACPJWTConfig, polName string) (*Handler, error) {
 		tokenQueryKey = cfg.TokenQueryKey
 	}
 
-	ks, err := keySet(cfg)
+	ks, err := cfg.keySet()
 	if err != nil {
 		return nil, err
 	}
@@ -120,26 +156,6 @@ func NewHandler(cfg *edge.ACPJWTConfig, polName string) (*Handler, error) {
 		tokQryKey:            tokenQueryKey,
 		validateCustomClaims: pred,
 	}, nil
-}
-
-func keySet(src *edge.ACPJWTConfig) (KeySet, error) {
-	if src.JWKsFile != "" {
-		if src.JWKsFile.IsPath() {
-			return NewFileKeySet(src.JWKsFile.String()), nil
-		}
-
-		ks, err := NewContentKeySet([]byte(src.JWKsFile))
-		if err != nil {
-			return nil, fmt.Errorf("new content key set: %w. If using a file path, maybe the file does not exist", err)
-		}
-		return ks, nil
-	}
-
-	if src.JWKsURL != "" && !strings.HasPrefix(src.JWKsURL, "/") {
-		return NewRemoteKeySet(src.JWKsURL), nil
-	}
-
-	return nil, nil
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
@@ -185,26 +201,6 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusOK)
-}
-
-// jwtExtractor extracts JWTs from HTTP requests.
-type jwtExtractor struct {
-	tokQryKey string
-}
-
-// ExtractToken extracts a JWT from an HTTP request. It first looks in the "Authorization" header then in a query parameter
-// named as configured by `tokQryKey`. It returns an error if no JWT was found.
-func (j jwtExtractor) ExtractToken(req *http.Request) (string, error) {
-	rawJWT := strings.TrimPrefix(req.Header.Get("Authorization"), "Bearer ")
-	if rawJWT == "" {
-		rawJWT = req.URL.Query().Get(j.tokQryKey)
-	}
-
-	if rawJWT == "" {
-		return "", errors.New("no JWT found in request")
-	}
-
-	return rawJWT, nil
 }
 
 // keyFunc returns a function to find the correct key to validate its given JWT's signature.
@@ -304,4 +300,24 @@ func (h *Handler) remoteKeySet(iss string) (*RemoteKeySet, error) {
 	h.dynKeySetsMu.Unlock()
 
 	return rks, nil
+}
+
+// jwtExtractor extracts JWTs from HTTP requests.
+type jwtExtractor struct {
+	tokQryKey string
+}
+
+// ExtractToken extracts a JWT from an HTTP request. It first looks in the "Authorization" header then in a query parameter
+// named as configured by `tokQryKey`. It returns an error if no JWT was found.
+func (j jwtExtractor) ExtractToken(req *http.Request) (string, error) {
+	rawJWT := strings.TrimPrefix(req.Header.Get("Authorization"), "Bearer ")
+	if rawJWT == "" {
+		rawJWT = req.URL.Query().Get(j.tokQryKey)
+	}
+
+	if rawJWT == "" {
+		return "", errors.New("no JWT found in request")
+	}
+
+	return rawJWT, nil
 }

@@ -289,8 +289,9 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 	edgeWatcher := edge.NewWatcher(edgeClient, time.Minute)
 
 	edgeWatcher.AddListener(edgeUpdater.Update)
-	edgeWatcher.AddListener(func(_ context.Context, _ []edge.Ingress, acps []edge.ACP) error {
-		return acpServer.UpdateHandler(acps)
+	edgeWatcher.AddListener(func(ctx context.Context, _ []edge.Ingress, acps []edge.ACP) error {
+		acpServer.UpdateHandler(ctx, acps)
+		return nil
 	})
 
 	tunnelClient, err := tunnel.NewClient(platformURL, token)
