@@ -33,11 +33,19 @@ type ACP struct {
 
 	Version string `json:"version"`
 
-	Name      string            `json:"name"`
-	JWT       *jwt.Config       `json:"jwt"`
-	BasicAuth *basicauth.Config `json:"basicAuth"`
-	OIDC      *oidc.Config      `json:"oidc"`
+	Name       string            `json:"name"`
+	JWT        *jwt.Config       `json:"jwt"`
+	BasicAuth  *basicauth.Config `json:"basicAuth"`
+	OIDC       *oidc.Config      `json:"oidc"`
+	OIDCGoogle *OIDCGoogle       `json:"oidcGoogle"`
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// OIDCGoogle is the Google OIDC configuration.
+type OIDCGoogle struct {
+	oidc.Config
+
+	Emails []string `json:"emails,omitempty"`
 }

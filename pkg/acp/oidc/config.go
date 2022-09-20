@@ -29,6 +29,7 @@ type Config struct {
 	LogoutURL   string            `json:"logoutUrl,omitempty"`
 	AuthParams  map[string]string `json:"authParams,omitempty"`
 
+	Key         string      `json:"-"`
 	StateCookie StateCookie `json:"stateCookie,omitempty"`
 	Session     Session     `json:"session,omitempty"`
 
@@ -70,14 +71,6 @@ func (cfg *Config) ApplyDefaultValues() {
 	if cfg.RedirectURL == "" {
 		cfg.RedirectURL = "/callback"
 	}
-
-	if cfg.Session.Secret == "" {
-		cfg.Session.Secret = newRandom().String(32)
-	}
-
-	if cfg.StateCookie.Secret == "" {
-		cfg.StateCookie.Secret = newRandom().String(32)
-	}
 }
 
 // Validate validates configuration.
@@ -100,26 +93,15 @@ func (cfg *Config) Validate() error {
 		return errors.New("missing client secret")
 	}
 
-	if cfg.Session.Secret == "" {
-		return errors.New("missing session secret")
+	if cfg.Key == "" {
+		return errors.New("missing key")
 	}
 
-	switch len(cfg.Session.Secret) {
+	switch len(cfg.Key) {
 	case 16, 24, 32:
 		break
 	default:
-		return errors.New("session secret must be 16, 24 or 32 characters long")
-	}
-
-	if cfg.StateCookie.SameSite == "" {
-		return errors.New("missing state secret")
-	}
-
-	switch len(cfg.StateCookie.Secret) {
-	case 16, 24, 32:
-		break
-	default:
-		return errors.New("state secret must be 16, 24 or 32 characters long")
+		return errors.New("key must be 16, 24 or 32 characters long")
 	}
 
 	return nil
@@ -133,7 +115,6 @@ type TLS struct {
 
 // StateCookie holds state cookie configuration.
 type StateCookie struct {
-	Secret   string `json:"secret,omitempty"`
 	SameSite string `json:"sameSite,omitempty"`
 	Secure   bool   `json:"secure,omitempty"`
 	Domain   string `json:"domain,omitempty"`
@@ -142,7 +123,6 @@ type StateCookie struct {
 
 // Session holds session configuration.
 type Session struct {
-	Secret   string `json:"secret,omitempty"`
 	SameSite string `json:"sameSite,omitempty"`
 	Secure   bool   `json:"secure,omitempty"`
 	Domain   string `json:"domain,omitempty"`

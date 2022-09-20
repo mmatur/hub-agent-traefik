@@ -23,6 +23,7 @@ import (
 	"fmt"
 	stdlog "log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -37,19 +38,22 @@ import (
 type Server struct {
 	listenAddr string
 	handler    *httpHandler
+
+	key string
 }
 
 // NewServer creates a new ACP Server.
-func NewServer(listenAddr string) *Server {
+func NewServer(listenAddr, key string) *Server {
 	return &Server{
 		listenAddr: listenAddr,
 		handler:    newHTTPHandler(),
+		key:        key,
 	}
 }
 
 // UpdateHandler updates auth routes served by the Server.
 func (s *Server) UpdateHandler(ctx context.Context, acps []edge.ACP) {
-	s.handler.Update(buildRoutes(ctx, acps))
+	s.handler.Update(s.buildRoutes(ctx, acps))
 }
 
 // Run runs the ACP auth server.
@@ -101,7 +105,7 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 }
 
-func buildRoutes(ctx context.Context, acps []edge.ACP) http.Handler {
+func (s *Server) buildRoutes(ctx context.Context, acps []edge.ACP) http.Handler {
 	mux := http.NewServeMux()
 
 	for _, acp := range acps {
@@ -109,7 +113,7 @@ func buildRoutes(ctx context.Context, acps []edge.ACP) http.Handler {
 
 		logger := log.With().Str("acp_name", acp.Name).Str("acp_type", getACPType(acp)).Logger()
 
-		route, err := buildRoute(ctx, acp)
+		route, err := buildRoute(ctx, acp, s.key)
 		if err != nil {
 			logger.Error().Err(err).Msg("create ACP handler")
 			continue
@@ -123,10 +127,20 @@ func buildRoutes(ctx context.Context, acps []edge.ACP) http.Handler {
 	return mux
 }
 
-func buildRoute(ctx context.Context, acp edge.ACP) (http.Handler, error) {
+func buildRoute(ctx context.Context, acp edge.ACP, key string) (http.Handler, error) {
 	switch {
 	case acp.OIDC != nil:
+		acp.OIDC.Key = key
 		return oidc.NewHandler(ctx, acp.OIDC, acp.Name)
+
+	case acp.OIDCGoogle != nil:
+		cfg := acp.OIDCGoogle.Config
+		cfg.Issuer = "https://accounts.google.com"
+		cfg.Scopes = []string{"email"}
+		cfg.Claims = buildClaims(acp.OIDCGoogle.Emails)
+		cfg.Key = key
+
+		return oidc.NewHandler(ctx, &cfg, acp.Name)
 
 	case acp.JWT != nil:
 		return jwt.NewHandler(acp.JWT, acp.Name)
@@ -153,4 +167,14 @@ func getACPType(acp edge.ACP) string {
 	default:
 		return "unknown"
 	}
+}
+
+// buildClaims builds the claims from the emails.
+func buildClaims(emails []string) string {
+	var claims []string
+	for _, email := range emails {
+		claims = append(claims, fmt.Sprintf(`Equals("email",%q)`, email))
+	}
+
+	return strings.Join(claims, "||")
 }

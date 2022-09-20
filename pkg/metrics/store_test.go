@@ -194,7 +194,7 @@ func genDataPoints(t *testing.T, now time.Time, n int, gran time.Duration) []Dat
 	for i := 0; i < n; i++ {
 		d := DataPoint{
 			Timestamp:   start.Add(time.Duration(i) * gran).Unix(),
-			ReqPerS:     rand.Float64(), //nolint:gosec // No need to crypto randomness in this test.
+			ReqPerS:     rand.Float64(),
 			RequestErrs: 1,
 		}
 		pnts = append(pnts, d)

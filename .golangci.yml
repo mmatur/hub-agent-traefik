@@ -112,6 +112,7 @@ issues:
     - 'G204: Subprocess launched with variable'
     - 'G304: Potential file inclusion via variable'
     - 'G102: Binds to all network interfaces'
+    - 'package-comments: should have a package comment'
   exclude-rules:
     - path: .*_test.go
       linters:
@@ -121,6 +122,7 @@ issues:
         - gochecknoglobals
         - maintidx
         - nosnakecase
+        - gosec
     - path: pkg/version/version.go
       linters:
         - gochecknoglobals
@@ -145,6 +147,3 @@ issues:
       text: "cyclomatic complexity 21 of func `(.*).ServeHTTP` is high"
       linters:
         - gocyclo
-    - path: pkg/acp/oidc/oidc_test.go
-      linters:
-        - gosec

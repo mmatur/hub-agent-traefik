@@ -49,12 +49,7 @@ func TestNewMiddlewareFromSource_ValidatesConfiguration(t *testing.T) {
 				ClientID:     "bar",
 				ClientSecret: "bat",
 				RedirectURL:  "test",
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
-				Session: Session{
-					Secret: "secret1234567890",
-				},
+				Key:          "1234567891234567",
 			},
 			wantErr: "validate configuration: missing issuer",
 		},
@@ -65,12 +60,7 @@ func TestNewMiddlewareFromSource_ValidatesConfiguration(t *testing.T) {
 				ClientID:     "",
 				ClientSecret: "bat",
 				RedirectURL:  "test",
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
-				Session: Session{
-					Secret: "secret1234567890",
-				},
+				Key:          "1234567891234567",
 			},
 			wantErr: "validate configuration: missing client ID",
 		},
@@ -81,14 +71,31 @@ func TestNewMiddlewareFromSource_ValidatesConfiguration(t *testing.T) {
 				ClientID:     "bar",
 				ClientSecret: "",
 				RedirectURL:  "test",
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
-				Session: Session{
-					Secret: "secret1234567890",
-				},
+				Key:          "1234567891234567",
 			},
 			wantErr: "validate configuration: missing client secret",
+		},
+		{
+			desc: "empty Key",
+			cfg: &Config{
+				Issuer:       "foo",
+				ClientID:     "bar",
+				ClientSecret: "bat",
+				RedirectURL:  "test",
+				Key:          "",
+			},
+			wantErr: "validate configuration: missing key",
+		},
+		{
+			desc: "wrong Key",
+			cfg: &Config{
+				Issuer:       "foo",
+				ClientID:     "bar",
+				ClientSecret: "bat",
+				RedirectURL:  "test",
+				Key:          "1234",
+			},
+			wantErr: "validate configuration: key must be 16, 24 or 32 characters long",
 		},
 	}
 
@@ -131,8 +138,7 @@ func TestMiddleware_RedirectsCorrectly(t *testing.T) {
 					"hd": "example.com",
 				},
 				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-					Path:   "/",
+					Path: "/",
 				},
 			},
 			wantStatus:      http.StatusFound,
@@ -148,8 +154,7 @@ func TestMiddleware_RedirectsCorrectly(t *testing.T) {
 			cfg: &Config{
 				RedirectURL: "/callback",
 				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-					Path:   "/",
+					Path: "/",
 				},
 			},
 			wantStatus:      http.StatusFound,
@@ -162,8 +167,7 @@ func TestMiddleware_RedirectsCorrectly(t *testing.T) {
 			cfg: &Config{
 				RedirectURL: "example.com/callback",
 				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-					Path:   "/",
+					Path: "/",
 				},
 			},
 			wantStatus:      http.StatusFound,
@@ -171,53 +175,33 @@ func TestMiddleware_RedirectsCorrectly(t *testing.T) {
 			wantRedirectURL: "http://example.com/callback",
 		},
 		{
-			desc:    "returns unauthorized if method is PUT",
-			request: httptest.NewRequest(http.MethodPut, "/foo", nil),
-			cfg: &Config{
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
-			},
+			desc:       "returns unauthorized if method is PUT",
+			request:    httptest.NewRequest(http.MethodPut, "/foo", nil),
+			cfg:        &Config{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			desc:    "returns unauthorized if method is POST",
-			request: httptest.NewRequest(http.MethodPost, "/foo", nil),
-			cfg: &Config{
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
-			},
+			desc:       "returns unauthorized if method is POST",
+			request:    httptest.NewRequest(http.MethodPost, "/foo", nil),
+			cfg:        &Config{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			desc:    "returns unauthorized if method is DELETE",
-			request: httptest.NewRequest(http.MethodDelete, "/foo", nil),
-			cfg: &Config{
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
-			},
+			desc:       "returns unauthorized if method is DELETE",
+			request:    httptest.NewRequest(http.MethodDelete, "/foo", nil),
+			cfg:        &Config{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			desc:    "returns unauthorized if method is PATCH",
-			request: httptest.NewRequest(http.MethodPatch, "/foo", nil),
-			cfg: &Config{
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
-			},
+			desc:       "returns unauthorized if method is PATCH",
+			request:    httptest.NewRequest(http.MethodPatch, "/foo", nil),
+			cfg:        &Config{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			desc:    "returns unauthorized if path is favicon.ico",
-			request: httptest.NewRequest(http.MethodGet, "https://foo.com/favicon.ico", nil),
-			cfg: &Config{
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
-			},
+			desc:       "returns unauthorized if path is favicon.ico",
+			request:    httptest.NewRequest(http.MethodGet, "https://foo.com/favicon.ico", nil),
+			cfg:        &Config{},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
@@ -229,7 +213,6 @@ func TestMiddleware_RedirectsCorrectly(t *testing.T) {
 					"hd": "example.com",
 				},
 				StateCookie: StateCookie{
-					Secret: "secret1234567890",
 					Path:   "/",
 					Domain: "example.com",
 				},
@@ -323,7 +306,6 @@ func TestMiddleware_ExchangesTokenOnCallback(t *testing.T) {
 		ClientSecret: "client-secret",
 		RedirectURL:  "http://foobar.com/callback",
 		StateCookie: StateCookie{
-			Secret:   "secret1234567890",
 			Path:     "/",
 			SameSite: "lax",
 			Secure:   true,
@@ -403,12 +385,6 @@ func TestMiddleware_ForwardsCorrectly(t *testing.T) {
 				ClientID:     "clientID",
 				ClientSecret: "secret1234567890",
 				RedirectURL:  "http://foo.com",
-				Session: Session{
-					Secret: "secret1234567890",
-				},
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
 			},
 			idToken:    "badtoken, very bad token.",
 			wantStatus: http.StatusBadRequest,
@@ -421,12 +397,6 @@ func TestMiddleware_ForwardsCorrectly(t *testing.T) {
 				ClientSecret: "secret1234567890",
 				RedirectURL:  "http://foo.com",
 				Claims:       "Equals(`group`,`dev`)",
-				Session: Session{
-					Secret: "secret1234567890",
-				},
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
 			},
 			idToken:    jwtToken,
 			wantStatus: http.StatusForbidden,
@@ -439,12 +409,6 @@ func TestMiddleware_ForwardsCorrectly(t *testing.T) {
 				ClientSecret: "secret1234567890",
 				RedirectURL:  "http://foo.com",
 				Claims:       "Equals(`group`,`admin`)",
-				Session: Session{
-					Secret: "secret1234567890",
-				},
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
 				ForwardHeaders: map[string]string{
 					"X-App-Group": "group",
 				},
@@ -463,12 +427,6 @@ func TestMiddleware_ForwardsCorrectly(t *testing.T) {
 				ClientSecret: "secret1234567890",
 				RedirectURL:  "http://foo.com",
 				Claims:       "Equals(`group`,`admin`)",
-				Session: Session{
-					Secret: "secret1234567890",
-				},
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
 				ForwardHeaders: map[string]string{
 					"x-App-Group": "group",
 				},
@@ -489,12 +447,6 @@ func TestMiddleware_ForwardsCorrectly(t *testing.T) {
 				ClientSecret: "secret1234567890",
 				RedirectURL:  "http://foo.com",
 				Claims:       "Equals(`group`,`admin`)",
-				Session: Session{
-					Secret: "secret1234567890",
-				},
-				StateCookie: StateCookie{
-					Secret: "secret1234567890",
-				},
 				ForwardHeaders: map[string]string{
 					"x-App-Group": "group",
 				},
@@ -607,8 +559,6 @@ func TestMiddleware_LogsOutCorrectly(t *testing.T) {
 				ClientID:     "clientID",
 				ClientSecret: "secret1234567890",
 				RedirectURL:  "http://foo.com",
-				StateCookie:  StateCookie{Secret: "secret1234567890"},
-				Session:      Session{Secret: "secret1234567890"},
 				LogoutURL:    test.logoutURL,
 			}
 
@@ -645,15 +595,15 @@ func buildHandler(t *testing.T) *Handler {
 		},
 	)
 
-	stateBlock, err := aes.NewCipher([]byte("secret1234567890"))
+	block, err := aes.NewCipher([]byte("secret1234567890"))
 	require.NoError(t, err)
 
 	return &Handler{
-		name:       "test",
-		stateBlock: stateBlock,
-		rand:       newRandom(),
-		client:     newHTTPClient(),
-		verifier:   verifier,
+		name:     "test",
+		block:    block,
+		rand:     newRandom(),
+		client:   newHTTPClient(),
+		verifier: verifier,
 	}
 }
 

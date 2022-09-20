@@ -19,6 +19,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"net"
 	"net/url"
@@ -249,8 +250,6 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	log.Info().Str("addr", reachableURL).Msg("Using Agent reachable address")
 
-	acpServer := acp.NewServer(listenAddr)
-
 	certClient, err := certificate.NewClient(platformURL, token)
 	if err != nil {
 		return fmt.Errorf("create certificate client: %w", err)
@@ -285,8 +284,8 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	hubUIURL := cliCtx.String(flagHubUIURL)
 	edgeUpdater := NewEdgeUpdater(certClient, traefikClient, dockerProvider, reachableURL, hubUIURL, agentCfg.AccessControl.MaxSecuredRoutes)
-
 	edgeWatcher := edge.NewWatcher(edgeClient, time.Minute)
+	acpServer := acp.NewServer(listenAddr, fmt.Sprintf("%x", sha256.Sum256([]byte(token)))[:32])
 
 	edgeWatcher.AddListener(edgeUpdater.Update)
 	edgeWatcher.AddListener(func(ctx context.Context, _ []edge.Ingress, acps []edge.ACP) error {
