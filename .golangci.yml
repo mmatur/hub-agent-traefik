@@ -76,6 +76,9 @@ linters:
     - exhaustivestruct # deprecated
     - ifshort # deprecated
     - structcheck # deprecated
+    - varcheck # deprecated
+    - deadcode # deprecated
+    - nosnakecase # deprecated
     - execinquery # not relevant (SQL)
     - sqlclosecheck # not relevant (SQL)
     - rowserrcheck # not relevant (SQL)
@@ -102,6 +105,7 @@ linters:
     - errchkjson
     - contextcheck
     - nonamedreturns
+    - nilerr
 
 issues:
   exclude-use-default: false
@@ -145,5 +149,9 @@ issues:
     # Reducing cyclomatic complexity would reduce readability.
     - path: pkg/acp/oidc/oidc.go
       text: "cyclomatic complexity 21 of func `(.*).ServeHTTP` is high"
+      linters:
+        - gocyclo
+    - path: cmd/agent/run.go
+      text: "cyclomatic complexity 16 of func `(.*).runAgent` is high"
       linters:
         - gocyclo

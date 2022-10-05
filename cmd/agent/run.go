@@ -243,8 +243,7 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 		}
 	}
 
-	_, err = url.ParseRequestURI(reachableURL)
-	if err != nil {
+	if _, err = url.ParseRequestURI(reachableURL); err != nil {
 		return fmt.Errorf("invalid URL in `%s` flag: %w", flagAuthServerAdvertiseURL, err)
 	}
 
@@ -302,6 +301,8 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	heartBeater := heartbeat.NewHeartbeater(platformClient)
 
+	checker := version.NewChecker(platformClient)
+
 	group, ctx := errgroup.WithContext(cliCtx.Context)
 	group.Go(func() error {
 		heartBeater.Run(ctx)
@@ -331,6 +332,14 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	group.Go(func() error {
 		tunnelManager.Run(ctx)
+		return nil
+	})
+
+	group.Go(func() error {
+		if err := checker.Start(ctx); err != nil {
+			return err
+		}
+
 		return nil
 	})
 

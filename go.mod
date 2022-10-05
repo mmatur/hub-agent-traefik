@@ -11,9 +11,11 @@ require (
 	github.com/ettle/strcase v0.1.1
 	github.com/evanphx/json-patch v0.5.2
 	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/google/go-github/v47 v47.1.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hamba/avro v1.8.0
 	github.com/hashicorp/go-retryablehttp v0.7.1
+	github.com/hashicorp/go-version v1.6.0
 	github.com/pquerna/cachecontrol v0.1.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.35.0
@@ -26,6 +28,8 @@ require (
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 	gopkg.in/square/go-jose.v2 v2.6.0
 )
+
+require github.com/google/go-querystring v1.1.0 // indirect
 
 require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect

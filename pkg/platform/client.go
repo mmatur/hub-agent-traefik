@@ -228,6 +228,46 @@ func (c *Client) FetchTopology(ctx context.Context) (topology.Reference, error) 
 	return r, nil
 }
 
+// SetVersionStatus sends the current version status to the platform.
+func (c *Client) SetVersionStatus(ctx context.Context, status version.Status) error {
+	baseURL, err := c.baseURL.Parse(path.Join(c.baseURL.Path, "version-status"))
+	if err != nil {
+		return fmt.Errorf("parse endpoint: %w", err)
+	}
+
+	body, err := json.Marshal(status)
+	if err != nil {
+		return fmt.Errorf("marshal status: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL.String(), bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	version.SetUserAgent(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		all, _ := io.ReadAll(resp.Body)
+
+		apiErr := APIError{StatusCode: resp.StatusCode}
+		if err = json.Unmarshal(all, &apiErr); err != nil {
+			apiErr.Message = string(all)
+		}
+
+		return apiErr
+	}
+
+	return nil
+}
+
 // PatchTopology submits a JSON Merge Patch to the platform containing the difference in the topology since its last synchronization.
 // The last known topology version must be provided.
 // This version can be obtained by calling the FetchTopology method.

@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/traefik/hub-agent-traefik/pkg/topology"
+	"github.com/traefik/hub-agent-traefik/pkg/version"
 )
 
 const testToken = "123"
@@ -475,6 +476,74 @@ func TestClient_PatchTopology(t *testing.T) {
 
 			assert.EqualValues(t, test.wantVersion, gotVersion)
 			require.Equal(t, 1, callCount)
+		})
+	}
+}
+
+func TestClient_SetVersionStatus(t *testing.T) {
+	tests := []struct {
+		desc             string
+		returnStatusCode int
+		wantErr          assert.ErrorAssertionFunc
+	}{
+		{
+			desc:             "version status successfully sent",
+			returnStatusCode: http.StatusOK,
+			wantErr:          assert.NoError,
+		},
+		{
+			desc:             "version status sent for an unknown cluster",
+			returnStatusCode: http.StatusNotFound,
+			wantErr:          assert.Error,
+		},
+		{
+			desc:             "error on sending version status",
+			returnStatusCode: http.StatusInternalServerError,
+			wantErr:          assert.Error,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			var gotStatus version.Status
+			mux := http.NewServeMux()
+			mux.HandleFunc("/version-status", func(rw http.ResponseWriter, req *http.Request) {
+				if req.Method != http.MethodPost {
+					http.Error(rw, fmt.Sprintf("unsupported to method: %s", req.Method), http.StatusMethodNotAllowed)
+					return
+				}
+
+				if req.Header.Get("Authorization") != "Bearer "+testToken {
+					http.Error(rw, "Invalid token", http.StatusUnauthorized)
+					return
+				}
+
+				err := json.NewDecoder(req.Body).Decode(&gotStatus)
+				require.NoError(t, err)
+
+				rw.WriteHeader(test.returnStatusCode)
+			})
+
+			srv := httptest.NewServer(mux)
+
+			t.Cleanup(srv.Close)
+
+			c, err := NewClient(srv.URL, testToken)
+			require.NoError(t, err)
+			c.httpClient = srv.Client()
+
+			status := version.Status{
+				UpToDate:       true,
+				CurrentVersion: "v0.5.0",
+				LatestVersion:  "v0.5.0",
+			}
+			err = c.SetVersionStatus(context.Background(), status)
+			test.wantErr(t, err)
+
+			require.Equal(t, status, gotStatus)
 		})
 	}
 }
