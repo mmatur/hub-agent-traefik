@@ -67,7 +67,7 @@ func NewClient(baseURL string, insecure bool, ca, cert, key string) (*Client, er
 
 	rc := retryablehttp.NewClient()
 	rc.RetryMax = 4
-	rc.Logger = logger.NewWrappedLogger(log.Logger.With().Str("component", "traefik_client").Logger())
+	rc.Logger = logger.NewRetryableHTTPWrapper(log.Logger.With().Str("component", "traefik_client").Logger())
 	rc.HTTPClient.Transport = &http.Transport{TLSClientConfig: tlsCfg}
 
 	return &Client{

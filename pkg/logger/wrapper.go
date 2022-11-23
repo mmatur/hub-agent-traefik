@@ -1,3 +1,20 @@
+/*
+Copyright (C) 2022 Traefik Labs
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+*/
+
 package logger
 
 import (
@@ -8,40 +25,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// WrappedLogger wraps our logger and implements retryablehttp.LeveledLogger.
-// The retry library we're using uses structured logging but sends fields as pairs of keys and values,
-// so we need to adapt them to our logger.
-type WrappedLogger struct {
-	logger zerolog.Logger
-}
-
-// NewWrappedLogger creates an implementation of the retryablehttp.LeveledLogger.
-func NewWrappedLogger(logger zerolog.Logger) *WrappedLogger {
-	return &WrappedLogger{logger: logger}
-}
-
-// Error starts a new message with error level.
-func (l WrappedLogger) Error(msg string, keysAndValues ...interface{}) {
-	logWithLevel(l.logger.Error(), msg, keysAndValues...)
-}
-
-// Info starts a new message with info level.
-func (l WrappedLogger) Info(msg string, keysAndValues ...interface{}) {
-	logWithLevel(l.logger.Info(), msg, keysAndValues...)
-}
-
-// Debug starts a new message with debug level.
-func (l WrappedLogger) Debug(msg string, keysAndValues ...interface{}) {
-	logWithLevel(l.logger.Debug(), msg, keysAndValues...)
-}
-
-// Warn starts a new message with warn level.
-func (l WrappedLogger) Warn(msg string, keysAndValues ...interface{}) {
-	logWithLevel(l.logger.Warn(), msg, keysAndValues...)
-}
-
 // RetryableHTTPWrapper wraps our logger and implements retryablehttp.LeveledLogger.
-// The retry library we're using uses structured logging but sends fields as pairs of keys and values,
+// The retry library we're using structured logging but sends fields as pairs of keys and values,
 // so we need to adapt them to our logger.
 type RetryableHTTPWrapper struct {
 	logger zerolog.Logger
@@ -54,22 +39,22 @@ func NewRetryableHTTPWrapper(logger zerolog.Logger) *RetryableHTTPWrapper {
 
 // Error starts a new message with error level.
 func (l RetryableHTTPWrapper) Error(msg string, keysAndValues ...interface{}) {
-	logWithLevel(l.logger.Error(), msg, keysAndValues...)
+	logWithLevel(l.logger.Error().CallerSkipFrame(2), msg, keysAndValues...)
 }
 
 // Info starts a new message with info level.
 func (l RetryableHTTPWrapper) Info(msg string, keysAndValues ...interface{}) {
-	logWithLevel(l.logger.Info(), msg, keysAndValues...)
+	logWithLevel(l.logger.Info().CallerSkipFrame(2), msg, keysAndValues...)
 }
 
 // Debug starts a new message with debug level.
 func (l RetryableHTTPWrapper) Debug(msg string, keysAndValues ...interface{}) {
-	logWithLevel(l.logger.Debug(), msg, keysAndValues...)
+	logWithLevel(l.logger.Debug().CallerSkipFrame(2), msg, keysAndValues...)
 }
 
 // Warn starts a new message with warn level.
 func (l RetryableHTTPWrapper) Warn(msg string, keysAndValues ...interface{}) {
-	logWithLevel(l.logger.Warn(), msg, keysAndValues...)
+	logWithLevel(l.logger.Warn().CallerSkipFrame(2), msg, keysAndValues...)
 }
 
 func logWithLevel(ev *zerolog.Event, msg string, kvs ...interface{}) {
