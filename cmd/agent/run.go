@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/ettle/strcase"
@@ -88,8 +90,9 @@ func newRunCmd() runCmd {
 			},
 			&cli.StringFlag{
 				Name:     flagHubToken,
-				Usage:    "The token to use for Hub platform API calls",
+				Usage:    fmt.Sprintf("The token to use for Hub platform API calls, optionally load value from filepath with setting $%s_FILE", strcase.ToSNAKE(flagHubToken)),
 				EnvVars:  []string{strcase.ToSNAKE(flagHubToken)},
+				FilePath: os.Getenv(strcase.ToSNAKE(flagHubToken) + "_FILE"),
 				Required: true,
 			},
 			&cli.StringFlag{
@@ -201,7 +204,7 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	version.Log()
 
-	platformURL, token := cliCtx.String(flagHubURL), cliCtx.String(flagHubToken)
+	platformURL, token := cliCtx.String(flagHubURL), strings.TrimSpace(cliCtx.String(flagHubToken))
 	platformClient, err := platform.NewClient(platformURL, token)
 	if err != nil {
 		return fmt.Errorf("new platform client: %w", err)
