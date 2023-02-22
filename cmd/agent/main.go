@@ -19,11 +19,9 @@ package main
 
 import (
 	"context"
-	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/traefik/hub-agent-traefik/pkg/version"
@@ -56,8 +54,6 @@ const (
 )
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-
 	if err := run(); err != nil {
 		log.Fatal().Err(err).Msg("Error while executing command")
 	}

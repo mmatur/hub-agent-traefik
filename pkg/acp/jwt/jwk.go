@@ -27,9 +27,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/pquerna/cachecontrol"
 	"github.com/traefik/hub-agent-traefik/pkg/version"
-	"gopkg.in/square/go-jose.v2"
 )
 
 // KeySet allows to get a signing key from a JWK set.

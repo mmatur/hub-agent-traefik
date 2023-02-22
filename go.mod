@@ -1,35 +1,34 @@
 module github.com/traefik/hub-agent-traefik
 
-go 1.19
+go 1.20
 
 require (
 	github.com/abbot/go-http-auth v0.4.0
-	github.com/coreos/go-oidc/v3 v3.2.0
+	github.com/coreos/go-oidc/v3 v3.5.0
 	github.com/docker/cli v20.10.17+incompatible
 	github.com/docker/docker v20.10.17+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/ettle/strcase v0.1.1
 	github.com/evanphx/json-patch v0.5.2
+	github.com/go-jose/go-jose/v3 v3.0.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/go-github/v47 v47.1.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hamba/avro v1.8.0
-	github.com/hashicorp/go-retryablehttp v0.7.1
+	github.com/hashicorp/go-retryablehttp v0.7.2
 	github.com/hashicorp/go-version v1.6.0
+	github.com/hashicorp/yamux v0.1.1
 	github.com/pquerna/cachecontrol v0.1.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.35.0
-	github.com/rs/zerolog v1.28.0
+	github.com/rs/zerolog v1.29.0
 	github.com/stretchr/testify v1.8.1
 	github.com/traefik/genconf v0.3.0
-	github.com/urfave/cli/v2 v2.24.2
+	github.com/urfave/cli/v2 v2.24.4
 	github.com/vulcand/predicate v1.2.0
-	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c
-	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
-	gopkg.in/square/go-jose.v2 v2.6.0
+	golang.org/x/oauth2 v0.5.0
+	golang.org/x/sync v0.1.0
 )
-
-require github.com/google/go-querystring v1.1.0 // indirect
 
 require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
@@ -39,14 +38,14 @@ require (
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/gogo/protobuf v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gravitational/trace v1.1.16-0.20220114165159-14a9a7dd6aaf // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87
 	github.com/jonboulle/clockwork v0.2.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/mattn/go-colorable v0.1.12 // indirect
-	github.com/mattn/go-isatty v0.0.14 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -61,10 +60,10 @@ require (
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
-	golang.org/x/crypto v0.0.0-20211215165025-cf75a172585e // indirect
-	golang.org/x/net v0.0.0-20220624214902-1bab6f366d9e // indirect
-	golang.org/x/sys v0.0.0-20220615213510-4f61da869c0c // indirect
-	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
+	golang.org/x/crypto v0.6.0 // indirect
+	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect

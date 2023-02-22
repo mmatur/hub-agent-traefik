@@ -52,6 +52,8 @@ type IDTokenVerifier interface {
 
 // StateData is the initial data captured at redirect time.
 // See https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
+//
+//nolint:musttag // TODO must be fixed
 type StateData struct {
 	// RedirectID is used to prevent CSRF and XSRF attacks.
 	RedirectID string
@@ -65,6 +67,8 @@ type StateData struct {
 }
 
 // SessionData is the state of the session.
+//
+//nolint:musttag // TODO must be fixed
 type SessionData struct {
 	AccessToken  string
 	TokenType    string
