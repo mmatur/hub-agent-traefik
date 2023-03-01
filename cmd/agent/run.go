@@ -204,17 +204,6 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	version.Log()
 
-	platformURL, token := cliCtx.String(flagHubURL), strings.TrimSpace(cliCtx.String(flagHubToken))
-	platformClient, err := platform.NewClient(platformURL, token)
-	if err != nil {
-		return fmt.Errorf("new platform client: %w", err)
-	}
-
-	agentCfg, err := initAgent(cliCtx.Context, platformClient)
-	if err != nil {
-		return fmt.Errorf("get platform config: %w", err)
-	}
-
 	traefikHost := cliCtx.String(flagTraefikHost)
 	traefikAPIPort := cliCtx.String(flagTraefikAPIPort)
 	traefikTunnelPort := cliCtx.String(flagTraefikTunnelPort)
@@ -252,13 +241,7 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 
 	log.Info().Str("addr", reachableURL).Msg("Using Agent reachable address")
 
-	certClient, err := certificate.NewClient(platformURL, token)
-	if err != nil {
-		return fmt.Errorf("create certificate client: %w", err)
-	}
-
 	dcOpts := createDockerClientOpts(cliCtx)
-
 	dockerClient, err := provider.CreateDockerClient(dcOpts)
 	if err != nil {
 		return fmt.Errorf("create docker client: %w", err)
@@ -269,6 +252,22 @@ func (r runCmd) runAgent(cliCtx *cli.Context) error {
 		dockerProvider = provider.NewDockerSwarm(dockerClient, traefikHost, 30*time.Second)
 	} else {
 		dockerProvider = provider.NewDocker(dockerClient, traefikHost)
+	}
+
+	platformURL, token := cliCtx.String(flagHubURL), strings.TrimSpace(cliCtx.String(flagHubToken))
+	platformClient, err := platform.NewClient(platformURL, token)
+	if err != nil {
+		return fmt.Errorf("new platform client: %w", err)
+	}
+
+	agentCfg, err := initAgent(cliCtx.Context, platformClient)
+	if err != nil {
+		return fmt.Errorf("get platform config: %w", err)
+	}
+
+	certClient, err := certificate.NewClient(platformURL, token)
+	if err != nil {
+		return fmt.Errorf("create certificate client: %w", err)
 	}
 
 	store := topostore.New(platformClient)
